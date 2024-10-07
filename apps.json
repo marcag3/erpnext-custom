@@ -22,5 +22,9 @@
   {
     "url": "https://github.com/frappe/print_designer",
     "branch": "main"
+  },
+  {
+    "url": "https://github.com/aerele/bank_api_integration",
+    "branch": "master"
   }
 ]
