@@ -24,7 +24,7 @@
     "branch": "main"
   },
   {
-    "url": "https://github.com/aerele/bank_api_integration",
-    "branch": "master"
+    "url": "https://github.com/frappe/non_profit",
+    "branch": "develop"
   }
 ]
