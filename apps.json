@@ -20,10 +20,6 @@
     "branch": "master"
   },
   {
-    "url": "https://github.com/frappe/print_designer",
-    "branch": "main"
-  },
-  {
     "url": "https://github.com/frappe/non_profit",
     "branch": "develop"
   }
