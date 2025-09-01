@@ -1,12 +1,32 @@
 name: erpnext
 services:
 
-  backend:
+  web:
     image: ghcr.io/marcag3/erpnext-custom:main
     platform: linux/amd64
     restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      SOCKETIO_PORT: 9000
+      DB_PASSWORD: "${DB_PASSWORD}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin}"
     volumes:
       - ./sites:/home/frappe/frappe-bench/sites
+    ports:
+      - "8080:80"  # Nginx will proxy to gunicorn on 8000 and websocket on 9000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+    networks:
+      home-server_proxy:
+      default:
 
   db:
     image: mariadb:10.6
@@ -21,65 +41,42 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD}"]
       interval: 10s
       retries: 5
+      start_period: 30s
+      timeout: 5s
     restart: unless-stopped
     volumes:
       - ./db-data:/var/lib/mysql
 
-  frontend:
-    command:
-      - nginx-entrypoint.sh
-    depends_on:
-      backend:
-        condition: service_started
-        required: true
-      websocket:
-        condition: service_started
-        required: true
+  queue:
+    image: ghcr.io/marcag3/erpnext-custom:main
+    platform: linux/amd64
+    restart: unless-stopped
+    command: ["bench", "worker", "--queue", "long,default,short"]
+    stop_signal: SIGTERM
     environment:
-      BACKEND: backend:8000
-      CLIENT_MAX_BODY_SIZE: 50m
-      FRAPPE_SITE_NAME_HEADER: "${FRAPPE_SITE_NAME_HEADER}"
-      PROXY_READ_TIMEOUT: "120"
-      SOCKETIO: websocket:9000
-      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
-      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
-      UPSTREAM_REAL_IP_RECURSIVE: "off"
-    image: ghcr.io/marcag3/erpnext-custom:main
-    networks:
-      home-server_proxy:
-      default:
-    platform: linux/amd64
-    restart: unless-stopped
+      DB_HOST: db
+      DB_PORT: 3306
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      DB_PASSWORD: "${DB_PASSWORD}"
     volumes:
       - ./sites:/home/frappe/frappe-bench/sites
-
-  queue-long:
-    command:
-      - bench
-      - worker
-      - --queue
-      - long,default,short
-    image: ghcr.io/marcag3/erpnext-custom:main
-    platform: linux/amd64
-    restart: unless-stopped
-    volumes:
-      - ./sites:/home/frappe/frappe-bench/sites
-
-  queue-short:
-    command:
-      - bench
-      - worker
-      - --queue
-      - short,default
-    image: ghcr.io/marcag3/erpnext-custom:main
-    platform: linux/amd64
-    restart: unless-stopped
-    volumes:
-      - ./sites:/home/frappe/frappe-bench/sites
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
 
   redis-cache:
     image: redis:6.2-alpine
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+      timeout: 3s
     volumes:
       - type: volume
         source: redis-cache-data
@@ -89,6 +86,11 @@ services:
   redis-queue:
     image: redis:6.2-alpine
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+      timeout: 3s
     volumes:
       - type: volume
         source: redis-queue-data
@@ -96,64 +98,27 @@ services:
         volume: {}
 
   scheduler:
-    command:
-      - bench
-      - schedule
     image: ghcr.io/marcag3/erpnext-custom:main
     platform: linux/amd64
     restart: unless-stopped
-    volumes:
-      - ./sites:/home/frappe/frappe-bench/sites
-
-  websocket:
-    command:
-      - node
-      - /home/frappe/frappe-bench/apps/frappe/socketio.js
-    image: ghcr.io/marcag3/erpnext-custom:main
-    platform: linux/amd64
-    restart: unless-stopped
-    volumes:
-      - ./sites:/home/frappe/frappe-bench/sites
-
-
-  configurator:
-    image: ghcr.io/marcag3/erpnext-custom:main
-    deploy:
-      restart_policy:
-        condition: none
-    entrypoint:
-      - bash
-      - -c
-    # add redis_socketio for backward compatibility
-    command:
-      - >
-        ls -1 apps > sites/apps.txt;
-        echo "{}" > sites/common_site_config.json;
-        bench set-config -g db_host $$DB_HOST;
-        bench set-config -gp db_port $$DB_PORT;
-        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
-        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
-        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
-        bench set-config -gp socketio_port $$SOCKETIO_PORT;
-        wait-for-it -t 120 db:3306;
-        wait-for-it -t 120 redis-cache:6379;
-        wait-for-it -t 120 redis-queue:6379;
-        bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=$$DB_PASSWORD --install-app erpnext --set-default frontend;
-        bench --site frontend install-app hrms;
-        bench --site frontend install-app payments;
-        bench --site frontend install-app print_designer;
-        bench --site frontend install-app insights;
-        bench --site frontend install-app builder;
+    command: ["bench", "schedule"]
+    stop_signal: SIGTERM
     environment:
-      DB_HOST: "db"
-      DB_PORT: "3306"
-      REDIS_CACHE: "redis-cache:6379"
-      REDIS_QUEUE: "redis-queue:6379"
-      SOCKETIO_PORT: "9000"
+      DB_HOST: db
+      DB_PORT: 3306
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
       DB_PASSWORD: "${DB_PASSWORD}"
     volumes:
       - ./sites:/home/frappe/frappe-bench/sites
-        
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+
 networks:
   default:
     name: erpnext

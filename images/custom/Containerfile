@@ -132,6 +132,56 @@ RUN export APP_INSTALL_ARGS="" && \
 
 FROM base AS backend
 
+USER root
+
+# Install S6 Overlay for process management
+RUN curl -sSL https://github.com/just-containers/s6-overlay/releases/download/v3.1.6.2/s6-overlay-noarch.tar.xz | tar -Jxpf - -C / && \
+    curl -sSL https://github.com/just-containers/s6-overlay/releases/download/v3.1.6.2/s6-overlay-x86_64.tar.xz | tar -Jxpf - -C /
+
+# Create S6 service directories
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/{user,user/contents.d,user/contents.d/nginx,user/contents.d/gunicorn,user/contents.d/websocket}
+
+# Create S6 service definitions
+RUN echo "nginx" > /etc/s6-overlay/s6-rc.d/user/contents.d/nginx/type && \
+    echo "gunicorn" > /etc/s6-overlay/s6-rc.d/user/contents.d/gunicorn/type && \
+    echo "websocket" > /etc/s6-overlay/s6-rc.d/user/contents.d/websocket/type
+
+# Create service run scripts
+RUN echo '#!/bin/bash' > /etc/s6-overlay/s6-rc.d/user/contents.d/nginx/run && \
+    echo 'cp /home/frappe/frappe-bench/nginx.conf /etc/nginx/sites-enabled/default' >> /etc/s6-overlay/s6-rc.d/user/contents.d/nginx/run && \
+    echo 'exec nginx -g "daemon off;"' >> /etc/s6-overlay/s6-rc.d/user/contents.d/nginx/run && \
+    chmod +x /etc/s6-overlay/s6-rc.d/user/contents.d/nginx/run
+
+RUN echo '#!/bin/bash' > /etc/s6-overlay/s6-rc.d/user/contents.d/gunicorn/run && \
+    echo 'exec /home/frappe/frappe-bench/env/bin/gunicorn --chdir=/home/frappe/frappe-bench/sites --bind=0.0.0.0:8000 --threads=4 --workers=2 --worker-class=gthread --worker-tmp-dir=/dev/shm --timeout=120 --preload frappe.app:application' >> /etc/s6-overlay/s6-rc.d/user/contents.d/gunicorn/run && \
+    chmod +x /etc/s6-overlay/s6-rc.d/user/contents.d/gunicorn/run
+
+RUN echo '#!/bin/bash' > /etc/s6-overlay/s6-rc.d/user/contents.d/websocket/run && \
+    echo 'exec node /home/frappe/frappe-bench/apps/frappe/socketio.js' >> /etc/s6-overlay/s6-rc.d/user/contents.d/websocket/run && \
+    chmod +x /etc/s6-overlay/s6-rc.d/user/contents.d/websocket/run
+
+# Create finish scripts for graceful shutdown
+RUN echo '#!/bin/bash' > /etc/s6-overlay/s6-rc.d/user/contents.d/nginx/finish && \
+    echo 's6-svscanctl -t /var/run/s6/services' >> /etc/s6-overlay/s6-rc.d/user/contents.d/nginx/finish && \
+    chmod +x /etc/s6-overlay/s6-rc.d/user/contents.d/nginx/finish
+
+RUN echo '#!/bin/bash' > /etc/s6-overlay/s6-rc.d/user/contents.d/gunicorn/finish && \
+    echo 's6-svscanctl -t /var/run/s6/services' >> /etc/s6-overlay/s6-rc.d/user/contents.d/gunicorn/finish && \
+    chmod +x /etc/s6-overlay/s6-rc.d/user/contents.d/gunicorn/finish
+
+RUN echo '#!/bin/bash' > /etc/s6-overlay/s6-rc.d/user/contents.d/websocket/finish && \
+    echo 's6-svscanctl -t /var/run/s6/services' >> /etc/s6-overlay/s6-rc.d/user/contents.d/websocket/finish && \
+    chmod +x /etc/s6-overlay/s6-rc.d/user/contents.d/websocket/finish
+
+# Create entrypoint.d directory for custom startup scripts
+RUN mkdir -p /etc/entrypoint.d
+
+# Copy the startup script to entrypoint.d
+COPY --chown=frappe:frappe startup.sh /etc/entrypoint.d/10-erpnext-init.sh
+
+# Copy nginx configuration
+COPY --chown=frappe:frappe nginx.conf /home/frappe/frappe-bench/nginx.conf
+
 USER frappe
 
 COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench /home/frappe/frappe-bench
@@ -144,15 +194,5 @@ VOLUME [ \
   "/home/frappe/frappe-bench/logs" \
 ]
 
-CMD [ \
-  "/home/frappe/frappe-bench/env/bin/gunicorn", \
-  "--chdir=/home/frappe/frappe-bench/sites", \
-  "--bind=0.0.0.0:8000", \
-  "--threads=4", \
-  "--workers=2", \
-  "--worker-class=gthread", \
-  "--worker-tmp-dir=/dev/shm", \
-  "--timeout=120", \
-  "--preload", \
-  "frappe.app:application" \
-]
+# Use S6 Overlay as entrypoint
+ENTRYPOINT ["/init"]

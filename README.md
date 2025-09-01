@@ -1,73 +1,126 @@
-[![Build Stable](https://github.com/frappe/frappe_docker/actions/workflows/build_stable.yml/badge.svg)](https://github.com/frappe/frappe_docker/actions/workflows/build_stable.yml)
-[![Build Develop](https://github.com/frappe/frappe_docker/actions/workflows/build_develop.yml/badge.svg)](https://github.com/frappe/frappe_docker/actions/workflows/build_develop.yml)
+# ERPNext Docker Setup Guide
 
-Everything about [Frappe](https://github.com/frappe/frappe) and [ERPNext](https://github.com/frappe/erpnext) in containers.
+This is a simplified, single-image Docker setup for ERPNext that eliminates the need for manual configuration and enables automatic updates.
 
-# Getting Started
+## Features
 
-To get started you need [Docker](https://docs.docker.com/get-docker/), [docker-compose](https://docs.docker.com/compose/), and [git](https://docs.github.com/en/get-started/getting-started-with-git/set-up-git) setup on your machine. For Docker basics and best practices refer to Docker's [documentation](http://docs.docker.com).
+- **Single Image**: All services use the same pre-built image
+- **Automatic Setup**: Site creation and app installation happens automatically
+- **Update-Friendly**: Works seamlessly with Watchtower for automatic updates
+- **Health Checks**: Proper dependency management with Docker Compose health checks
 
-Once completed, chose one of the following two sections for next steps.
+## Quick Start
 
-### Try in Play With Docker
+1. **Clone and Setup**:
+   ```bash
+   git clone <your-repo>
+   cd frappe_docker
+   cp example.env .env
+   # Edit .env with your desired passwords
+   ```
 
-To play in an already set up sandbox, in your browser, click the button below:
+2. **Start Services**:
+   ```bash
+   docker compose up -d
+   ```
 
-<a href="https://labs.play-with-docker.com/?stack=https://raw.githubusercontent.com/frappe/frappe_docker/main/pwd.yml">
-  <img src="https://raw.githubusercontent.com/play-with-docker/stacks/master/assets/images/button.png" alt="Try in PWD"/>
-</a>
+3. **Access ERPNext**:
+   - Wait for all services to be healthy (check with `docker compose ps`)
+   - Access at `http://localhost:8080`
+   - Username: `Administrator`
+   - Password: Value of `ADMIN_PASSWORD` in your `.env` file
 
-### Try on your Dev environment
+## How It Works
 
-First clone the repo:
+### Service Types
+Each service uses the same image but runs different functionality based on the `SERVICE_TYPE` environment variable:
 
-```sh
-git clone https://github.com/frappe/frappe_docker
-cd frappe_docker
+- **backend**: Gunicorn web server
+- **frontend**: Nginx reverse proxy
+- **worker**: Background job processing (all queue types)
+- **scheduler**: Cron job scheduling
+- **websocket**: Real-time communication
+
+### Automatic Initialization
+On first run, the startup script automatically:
+1. Waits for database and Redis services to be healthy
+2. Creates the ERPNext site if it doesn't exist
+3. Installs all required apps (ERPNext, HRMS, Payments, etc.)
+4. Starts the appropriate service
+
+### Health Checks
+- **Database**: Waits for MariaDB to be ready
+- **Redis**: Waits for both cache and queue instances
+- **Dependencies**: Services only start after dependencies are healthy
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_PASSWORD` | - | MariaDB root password (required) |
+| `ADMIN_PASSWORD` | `admin` | ERPNext admin user password |
+| `FRAPPE_SITE_NAME_HEADER` | - | Custom site header |
+
+## Automatic Updates with Watchtower
+
+Add this service to your `docker-compose.yml` for automatic updates:
+
+```yaml
+watchtower:
+  image: containrrr/watchtower
+  restart: unless-stopped
+  environment:
+    - WATCHTOWER_CLEANUP=true
+    - WATCHTOWER_POLL_INTERVAL=3600
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  command: --include-stopped --revive-stopped
 ```
 
-Then run: `docker compose -f pwd.yml up -d`
+## Troubleshooting
 
-## Final steps
+### Check Service Status
+```bash
+docker compose ps
+```
 
-Wait for 5 minutes for ERPNext site to be created or check `create-site` container logs before opening browser on port 8080. (username: `Administrator`, password: `admin`)
+### View Logs
+```bash
+docker compose logs -f [service-name]
+```
 
-If you ran in a Dev Docker environment, to view container logs: `docker compose -f pwd.yml -d`. Don't worry about some of the initial error messages, some services take a while to become ready, and then they go away.
+### Rebuild and Restart
+```bash
+docker compose down
+docker compose up -d --build
+```
 
-# Documentation
+### Reset Everything
+```bash
+docker compose down -v
+rm -rf sites/ db-data/
+docker compose up -d
+```
 
-### [Production](#production)
+## Architecture
 
-- [List of containers](docs/list-of-containers.md)
-- [Single Compose Setup](docs/single-compose-setup.md)
-- [Environment Variables](docs/environment-variables.md)
-- [Single Server Example](docs/single-server-example.md)
-- [Setup Options](docs/setup-options.md)
-- [Site Operations](docs/site-operations.md)
-- [Backup and Push Cron Job](docs/backup-and-push-cronjob.md)
-- [Port Based Multi Tenancy](docs/port-based-multi-tenancy.md)
-- [Migrate from multi-image setup](docs/migrate-from-multi-image-setup.md)
-- [running on linux/mac](docs/setup_for_linux_mac.md)
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Frontend  │    │   Backend   │    │   Worker    │
+│   (Nginx)   │    │ (Gunicorn)  │    │ (Background)│
+└─────────────┘    └─────────────┘    └─────────────┘
+       │                   │                   │
+       └───────────────────┼───────────────────┘
+                           │
+                    ┌─────────────┐
+                    │   Database  │
+                    │  (MariaDB)  │
+                    └─────────────┘
+                           │
+                    ┌─────────────┐
+                    │    Redis    │
+                    │ (Cache+Q)   │
+                    └─────────────┘
+```
 
-### [Custom Images](#custom-images)
-
-- [Custom Apps](docs/custom-apps.md)
-- [Build Version 10 Images](docs/build-version-10-images.md)
-
-### [Development](#development)
-
-- [Development using containers](docs/development.md)
-- [Bench Console and VSCode Debugger](docs/bench-console-and-vscode-debugger.md)
-- [Connect to localhost services](docs/connect-to-localhost-services-from-containers-for-local-app-development.md)
-
-### [Troubleshoot](docs/troubleshoot.md)
-
-# Contributing
-
-If you want to contribute to this repo refer to [CONTRIBUTING.md](CONTRIBUTING.md)
-
-This repository is only for container related stuff. You also might want to contribute to:
-
-- [Frappe framework](https://github.com/frappe/frappe#contributing),
-- [ERPNext](https://github.com/frappe/erpnext#contributing),
-- [Frappe Bench](https://github.com/frappe/bench).
+All services use the same Docker image with different `SERVICE_TYPE` configurations.
