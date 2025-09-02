@@ -1,0 +1,9 @@
+#!/bin/sh
+# WebSocket service finish script
+
+# Graceful shutdown
+if [ $1 -eq 0 ]; then
+    echo "WebSocket service stopped successfully"
+else
+    echo "WebSocket service stopped with exit code $1"
+fi

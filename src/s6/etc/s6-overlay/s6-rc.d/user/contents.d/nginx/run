@@ -1,0 +1,8 @@
+#!/bin/sh
+# Nginx service run script
+
+# Copy nginx configuration
+cp /home/frappe/frappe-bench/nginx.conf /etc/nginx/sites-enabled/default
+
+# Start nginx
+exec nginx -g "daemon off;"

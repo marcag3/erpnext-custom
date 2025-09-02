@@ -1,8 +1,26 @@
 #!/bin/bash
 
-export APPS_JSON_BASE64=$(base64 -w 0 /path/to/apps.json)
+echo "🏗️  Building ERPNext Docker Image"
+echo "=================================================="
 
-docker build \
-  --build-arg=APPS_JSON_BASE64=$APPS_JSON_BASE64 \
-  --tag=ghcr.io/user/repo/custom:1.0.0 \
-  --file=images/custom/Containerfile .
+# Check if docker buildx is available
+if ! docker buildx version > /dev/null 2>&1; then
+    echo "❌ Docker Buildx is not available. Please install it first."
+    exit 1
+fi
+
+# Check current builder
+CURRENT_BUILDER=$(docker buildx inspect --bootstrap | grep "Driver:" | awk '{print $2}')
+echo "🔧 Current builder: $CURRENT_BUILDER"
+
+# Try to build with bake first
+echo "🔨 Building image with docker buildx bake..."
+if docker buildx bake erpnext-nginx; then
+    echo "✅ Build completed successfully!"
+    echo ""
+    echo "🚀 To start services:"
+    echo "   docker compose up -d"
+    echo ""
+    echo "🌐 Access ERPNext at: http://localhost:8080"
+    exit 0
+fi

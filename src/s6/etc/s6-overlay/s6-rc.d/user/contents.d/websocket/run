@@ -1,0 +1,8 @@
+#!/bin/sh
+# WebSocket service run script
+
+# Wait for Redis to be ready
+wait-for-it -t 120 ${REDIS_QUEUE:-redis-queue}:6379
+
+# Start WebSocket server
+exec node /home/frappe/frappe-bench/apps/frappe/socketio.js

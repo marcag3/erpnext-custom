@@ -1,0 +1,23 @@
+#!/bin/sh
+# ERPNext Docker Entrypoint Script
+# Based on serversideup pattern
+
+set -e
+
+# Source environment variables
+if [ -f /etc/environment ]; then
+    . /etc/environment
+fi
+
+# Run entrypoint scripts in order
+if [ -d /etc/entrypoint.d ]; then
+    for script in /etc/entrypoint.d/*.sh; do
+        if [ -f "$script" ] && [ -x "$script" ]; then
+            echo "Running entrypoint script: $script"
+            . "$script"
+        fi
+    done
+fi
+
+# Execute the main command
+exec "$@"

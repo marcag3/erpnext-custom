@@ -1,0 +1,40 @@
+#!/bin/sh
+# ERPNext Permission Management Script
+# Handles user/group IDs and file permissions
+
+set -e
+
+# Default values
+PUID=${PUID:-1000}
+PGID=${PGID:-1000}
+
+echo "Setting permissions: PUID=${PUID}, PGID=${PGID}"
+
+# Fix user/group IDs if needed
+CURRENT_UID=$(id -u frappe 2>/dev/null || echo "")
+CURRENT_GID=$(id -g frappe 2>/dev/null || echo "")
+
+if [ "${CURRENT_UID}" != "${PUID}" ] || [ "${CURRENT_GID}" != "${PGID}" ]; then
+    echo "Updating user/group IDs from ${CURRENT_UID}:${CURRENT_GID} to ${PUID}:${PGID}"
+    [ "${CURRENT_GID}" != "${PGID}" ] && groupmod -g ${PGID} frappe
+    [ "${CURRENT_UID}" != "${PUID}" ] && usermod -u ${PUID} frappe
+fi
+
+# Set file permissions
+echo "Setting file permissions..."
+
+# Core ERPNext directories
+# mkdir -p /home/frappe/frappe-bench/logs
+chown -R ${PUID}:${PGID} /home/frappe/frappe-bench/sites 2>/dev/null || true
+chown -R ${PUID}:${PGID} /home/frappe/frappe-bench/logs 2>/dev/null || true
+
+chmod -R 755 /home/frappe/frappe-bench/sites 2>/dev/null || true
+chmod -R 755 /home/frappe/frappe-bench/logs 2>/dev/null || true
+
+# Nginx directories and files
+chown -R ${PUID}:${PGID} /var/log/nginx /var/cache/nginx /var/lib/nginx /etc/nginx/conf.d 2>/dev/null || true
+chown ${PUID}:${PGID} /etc/nginx/nginx.conf /run/nginx.pid 2>/dev/null || true
+chmod -R 755 /var/log/nginx /var/cache/nginx /var/lib/nginx /etc/nginx/conf.d 2>/dev/null || true
+chmod 644 /etc/nginx/nginx.conf /run/nginx.pid 2>/dev/null || true
+
+echo "Permissions set successfully"

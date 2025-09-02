@@ -3,7 +3,8 @@
 
 # mounted volume
 sites
-
+logs
+db-data
 development/*
 !development/README.md
 !development/installer.py

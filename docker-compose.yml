@@ -2,17 +2,20 @@ name: erpnext
 services:
 
   web:
-    image: ghcr.io/marcag3/erpnext-custom:main
+    image: ghcr.io/marcag3/erpnext-custom:latest
     platform: linux/amd64
     restart: unless-stopped
     environment:
       DB_HOST: db
       DB_PORT: 3306
-      REDIS_CACHE: redis-cache:6379
-      REDIS_QUEUE: redis-queue:6379
+      REDIS_CACHE: redis-cache
+      REDIS_QUEUE: redis-queue
       SOCKETIO_PORT: 9000
       DB_PASSWORD: "${DB_PASSWORD}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin}"
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      AUTORUN_ENABLED: "true"
     volumes:
       - ./sites:/home/frappe/frappe-bench/sites
     ports:
@@ -25,7 +28,7 @@ services:
       redis-queue:
         condition: service_healthy
     networks:
-      home-server_proxy:
+      # home-server_proxy:
       default:
 
   db:
@@ -48,7 +51,7 @@ services:
       - ./db-data:/var/lib/mysql
 
   queue:
-    image: ghcr.io/marcag3/erpnext-custom:main
+    image: ghcr.io/marcag3/erpnext-custom:latest
     platform: linux/amd64
     restart: unless-stopped
     command: ["bench", "worker", "--queue", "long,default,short"]
@@ -56,9 +59,36 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 3306
-      REDIS_CACHE: redis-cache:6379
-      REDIS_QUEUE: redis-queue:6379
+      REDIS_CACHE: redis-cache
+      REDIS_QUEUE: redis-queue
       DB_PASSWORD: "${DB_PASSWORD}"
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      AUTORUN_ENABLED: "false"
+    volumes:
+      - ./sites:/home/frappe/frappe-bench/sites
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+
+
+  scheduler:
+    image: ghcr.io/marcag3/erpnext-custom:latest
+    platform: linux/amd64
+    restart: unless-stopped
+    command: ["bench", "schedule"]
+    stop_signal: SIGTERM
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      REDIS_CACHE: redis-cache
+      REDIS_QUEUE: redis-queue
+      DB_PASSWORD: "${DB_PASSWORD}"
+      AUTORUN_ENABLED: "false"
     volumes:
       - ./sites:/home/frappe/frappe-bench/sites
     depends_on:
@@ -97,33 +127,12 @@ services:
         target: /data
         volume: {}
 
-  scheduler:
-    image: ghcr.io/marcag3/erpnext-custom:main
-    platform: linux/amd64
-    restart: unless-stopped
-    command: ["bench", "schedule"]
-    stop_signal: SIGTERM
-    environment:
-      DB_HOST: db
-      DB_PORT: 3306
-      REDIS_CACHE: redis-cache:6379
-      REDIS_QUEUE: redis-queue:6379
-      DB_PASSWORD: "${DB_PASSWORD}"
-    volumes:
-      - ./sites:/home/frappe/frappe-bench/sites
-    depends_on:
-      db:
-        condition: service_healthy
-      redis-cache:
-        condition: service_healthy
-      redis-queue:
-        condition: service_healthy
 
 networks:
   default:
     name: erpnext
-  home-server_proxy:
-    external: true
+  # home-server_proxy:
+  #   external: true
 volumes:
   redis-cache-data:
     name: frappe_docker_redis-cache-data

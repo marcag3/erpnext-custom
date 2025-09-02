@@ -1,0 +1,9 @@
+#!/bin/sh
+# Gunicorn service finish script
+
+# Graceful shutdown
+if [ $1 -eq 0 ]; then
+    echo "Gunicorn service stopped successfully"
+else
+    echo "Gunicorn service stopped with exit code $1"
+fi

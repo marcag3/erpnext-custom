@@ -42,14 +42,18 @@ jobs:
         APPS_JSON=$(cat apps.json)
         echo "::set-output name=apps_json_base64::$(echo $APPS_JSON | base64 -w 0)"
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
     - name: Build and Push Docker Image
       uses: docker/build-push-action@v6
       with:
         context: .
-        file: images/custom/Containerfile
+        file: src/variations/erpnext-nginx/Dockerfile
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         build-args: |
           APPS_JSON_BASE64=${{ steps.apps_json.outputs.apps_json_base64 }}
+        platforms: linux/amd64,linux/arm64
 
