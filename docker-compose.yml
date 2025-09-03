@@ -18,12 +18,65 @@ services:
     ports:
       - "8080:80"  # Nginx will proxy to gunicorn on 8000 and websocket on 9000
     depends_on:
-      - db
-      - redis-cache
-      - redis-queue
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
     networks:
       # home-server_proxy:
       default:
+      
+
+  queue:
+    image: ghcr.io/marcag3/erpnext-custom:latest
+    platform: linux/amd64
+    command: ["bench", "worker", "--queue", "long,default,short"]
+    stop_signal: SIGTERM
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      REDIS_CACHE: redis-cache
+      REDIS_QUEUE: redis-queue
+      DB_PASSWORD: "${DB_PASSWORD}"
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      AUTORUN_ENABLED: "false"
+    volumes:
+      - ./sites:/home/frappe/frappe-bench/sites/frontend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+
+
+  scheduler:
+    image: ghcr.io/marcag3/erpnext-custom:latest
+    platform: linux/amd64
+    command: ["bench", "schedule"]
+    stop_signal: SIGTERM
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      REDIS_CACHE: redis-cache
+      REDIS_QUEUE: redis-queue
+      DB_PASSWORD: "${DB_PASSWORD}"
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      AUTORUN_ENABLED: "false"
+    volumes:
+      - ./sites:/home/frappe/frappe-bench/sites/frontend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
 
   db:
     image: mariadb:10.6
@@ -43,49 +96,9 @@ services:
     volumes:
       - ./db-data:/var/lib/mysql
 
-  queue:
-    image: ghcr.io/marcag3/erpnext-custom:latest
-    platform: linux/amd64
-    command: ["bench", "worker", "--queue", "long,default,short"]
-    stop_signal: SIGTERM
-    environment:
-      DB_HOST: db
-      DB_PORT: 3306
-      REDIS_CACHE: redis-cache
-      REDIS_QUEUE: redis-queue
-      DB_PASSWORD: "${DB_PASSWORD}"
-      PUID: "${PUID:-1000}"
-      PGID: "${PGID:-1000}"
-      AUTORUN_ENABLED: "false"
-    volumes:
-      - ./sites:/home/frappe/frappe-bench/sites/frontend
-    depends_on:
-      - db
-      - redis-cache
-      - redis-queue
-
-
-  scheduler:
-    image: ghcr.io/marcag3/erpnext-custom:latest
-    platform: linux/amd64
-    command: ["bench", "schedule"]
-    stop_signal: SIGTERM
-    environment:
-      DB_HOST: db
-      DB_PORT: 3306
-      REDIS_CACHE: redis-cache
-      REDIS_QUEUE: redis-queue
-      DB_PASSWORD: "${DB_PASSWORD}"
-      AUTORUN_ENABLED: "false"
-    volumes:
-      - ./sites:/home/frappe/frappe-bench/sites/frontend
-    depends_on:
-      - db
-      - redis-cache
-      - redis-queue
 
   redis-cache:
-    image: redis:6.2-alpine
+    image: redis:7.4-alpine
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -98,7 +111,7 @@ services:
         volume: {}
 
   redis-queue:
-    image: redis:6.2-alpine
+    image: redis:7.4-alpine
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

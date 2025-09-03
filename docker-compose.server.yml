@@ -62,6 +62,8 @@ services:
       REDIS_CACHE: redis-cache
       REDIS_QUEUE: redis-queue
       DB_PASSWORD: "${DB_PASSWORD}"
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
       AUTORUN_ENABLED: "false"
     volumes:
       - ./sites:/home/frappe/frappe-bench/sites/frontend

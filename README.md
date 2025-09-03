@@ -1,6 +1,6 @@
-# ERPNext Docker - Serversideup Style
+# ERPNext Docker
 
-This is a simplified, single-image Docker setup for ERPNext that follows the modern [serversideup pattern](https://serversideup.net/open-source/docker-php/docs/getting-started/these-images-vs-others) of "one container, one thing" instead of the old "one container, one process" mantra.
+A modern, production-ready Docker setup for ERPNext that follows the [serversideup pattern](https://serversideup.net/open-source/docker-php/docs/getting-started/these-images-vs-others) of "one container, one thing" for optimal resource utilization and simplified management.
 
 ## 🏗️ Architecture
 
@@ -18,44 +18,68 @@ This is a simplified, single-image Docker setup for ERPNext that follows the mod
 ## ✨ Features
 
 - **Single Web Container**: Nginx + Gunicorn + WebSocket all in one container
-- **S6-overlay Process Management**: Modern process supervisor for containers
+- **S6-overlay Process Management**: Modern, reliable process supervisor for containers
 - **ServersideUp Pattern**: Follows the proven pattern from serversideup/docker-php
-
-## 🚧 Current Status
-
-**Issue**: S6-overlay services not starting properly
-- ✅ S6-overlay running as init system
-- ✅ Services configured (nginx, gunicorn, websocket)
-- ❌ Service compilation failing: `undefined service name nginx`
-
-**See [CONTEXT.md](CONTEXT.md) for detailed troubleshooting status**
-- **S6 Overlay Process Management**: Modern, reliable process supervisor
-- **Entrypoint Scripts**: Following serversideup's pattern for initialization
-- **Separate Worker Containers**: Using command overrides instead of SERVICE_TYPE
 - **Automatic Setup**: Site creation and app installation happens automatically
+- **Production Ready**: Health checks, proper signal handling, and graceful shutdowns
 - **Update-Friendly**: Works seamlessly with Watchtower for automatic updates
 - **LinuxServer.io User Management**: Dynamic user/group ID handling to prevent permission issues
+- **Multi-Platform Support**: Builds for multiple architectures using Docker Buildx
 
 ## 🚀 Quick Start
 
-1. **Clone and Setup**:
-   ```bash
-   git clone <your-repo>
-   cd frappe_docker
-   cp example.env .env
-   # Edit .env with your desired passwords
-   ```
+### Prerequisites
 
-2. **Start Services**:
-   ```bash
-   docker compose up -d
-   ```
+- Docker and Docker Compose installed
+- At least 4GB RAM available
+- Ports 8080 (web) and 3306 (database) available
 
-3. **Access ERPNext**:
-   - Wait for all services to be healthy (check with `docker compose ps`)
-   - Access at `http://localhost:8080`
-   - Username: `Administrator`
-   - Password: Value of `ADMIN_PASSWORD` in your `.env` file
+### 1. Clone and Setup
+
+```bash
+git clone https://github.com/marcag3/frappe_docker.git
+cd frappe_docker
+```
+
+### 2. Environment Configuration
+
+Copy the example environment file and customize it:
+
+```bash
+cp example.env .env
+```
+
+Edit `.env` with your desired configuration:
+
+```bash
+# Database Configuration
+DB_PASSWORD=your_secure_database_password
+
+# ERPNext Admin Configuration  
+ADMIN_PASSWORD=your_admin_password
+
+# User/Group IDs (optional - defaults to 1000)
+PUID=1000
+PGID=1000
+```
+
+### 3. Start Services
+
+```bash
+# Start all services
+docker compose up -d
+
+# Check service status
+docker compose ps
+```
+
+### 4. Access ERPNext
+
+- **URL**: http://localhost:8080
+- **Username**: `Administrator`
+- **Password**: Value of `ADMIN_PASSWORD` from your `.env` file
+
+> **Note**: Initial setup may take 5-10 minutes as ERPNext creates the site and installs apps automatically.
 
 ## 🔐 User and Group ID Management
 
@@ -173,10 +197,60 @@ docker compose up -d --build
 docker compose build web
 ```
 
+## 🏭 Production Deployment
+
+### Security Considerations
+
+- **Change Default Passwords**: Always use strong, unique passwords for `DB_PASSWORD` and `ADMIN_PASSWORD`
+- **Use HTTPS**: Configure a reverse proxy (nginx, traefik) with SSL certificates
+- **Network Security**: Use `docker-compose.server.yml` for production with proper network isolation
+- **Regular Backups**: Implement automated backups for database and site data
+
+### Production Configuration
+
+For production deployments, use `docker-compose.server.yml`:
+
+```bash
+# Use production configuration
+docker compose -f docker-compose.server.yml up -d
+```
+
+Key differences in production mode:
+- Services restart automatically (`restart: unless-stopped`)
+- Health check dependencies ensure proper startup order
+- External network support for reverse proxies
+- Updated Redis versions (7.4-alpine)
+
+### Resource Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **RAM** | 4GB | 8GB+ |
+| **CPU** | 2 cores | 4+ cores |
+| **Storage** | 20GB | 100GB+ SSD |
+| **Network** | 100Mbps | 1Gbps+ |
+
+### Monitoring and Maintenance
+
+```bash
+# Check service health
+docker compose ps
+
+# View logs
+docker compose logs -f web
+
+# Monitor resource usage
+docker stats
+
+# Backup database
+docker compose exec db mysqldump -u root -p${DB_PASSWORD} --all-databases > backup.sql
+```
+
 ## 🔄 Updates
 
 ### Automatic Updates with Watchtower
-Add this service to your `docker-compose.yml`:
+
+Add this service to your `docker-compose.yml` for automatic updates:
 
 ```yaml
 watchtower:
@@ -190,44 +264,139 @@ watchtower:
   command: --include-stopped --revise-stopped
 ```
 
-## 🧪 Testing
+### Manual Updates
 
-### Check Service Status
 ```bash
+# Pull latest images
+docker compose pull
+
+# Restart services with new images
+docker compose up -d
+```
+
+## 🧪 Testing & Troubleshooting
+
+### Service Health Checks
+
+```bash
+# Check all service status
 docker compose ps
-```
 
-### View Logs
-```bash
+# View real-time logs
 docker compose logs -f web
+
+# Check specific service logs
+docker compose logs -f db
+docker compose logs -f queue
+docker compose logs -f scheduler
 ```
 
-### Check S6 Services
+### S6 Service Management
+
 ```bash
-docker exec -it <container> s6-svstat /var/run/s6/services/*
+# Check S6 service status inside container
+docker exec -it <container_name> s6-svstat /var/run/s6/services/*
+
+# Restart specific S6 service
+docker exec -it <container_name> s6-svc -r /var/run/s6/services/nginx
 ```
 
-## 🆚 Comparison with Previous Setup
+### Common Issues
 
-| Aspect | Previous (Multi-Container) | Current (S6 Overlay) |
-|--------|----------------------------|----------------------|
-| **Containers** | 3 web containers | 1 web container |
-| **Networking** | Inter-container | Internal (localhost) |
-| **Updates** | Multiple images | Single image |
-| **Resource Usage** | Higher overhead | Lower overhead |
-| **Complexity** | Higher | Lower |
-| **Debugging** | Multiple logs | Single log stream |
+#### Services Not Starting
+```bash
+# Check if all dependencies are healthy
+docker compose ps
 
-## 📚 References
+# Verify environment variables
+docker compose config
 
-- [Serversideup Docker PHP Images](https://github.com/serversideup/docker-php)
-- [S6 Overlay Documentation](https://github.com/just-containers/s6-overlay)
-- [Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/)
+# Check container logs for errors
+docker compose logs web
+```
+
+#### Permission Issues
+```bash
+# Fix file permissions
+docker compose exec web chown -R frappe:frappe /home/frappe/frappe-bench/sites
+
+# Check user/group IDs
+docker compose exec web id frappe
+```
+
+#### Database Connection Issues
+```bash
+# Test database connectivity
+docker compose exec web bench --site frontend mariadb
+
+# Check database logs
+docker compose logs db
+```
+
+### Performance Monitoring
+
+```bash
+# Monitor resource usage
+docker stats
+
+# Check disk usage
+docker system df
+
+# View container resource limits
+docker compose exec web cat /proc/meminfo
+```
+
+## 🆚 Architecture Comparison
+
+| Aspect | Traditional Multi-Container | Current S6 Overlay |
+|--------|----------------------------|-------------------|
+| **Web Services** | 3 separate containers | 1 unified container |
+| **Networking** | Inter-container communication | Internal localhost |
+| **Resource Usage** | Higher memory overhead | Optimized resource usage |
+| **Updates** | Multiple image updates | Single image update |
+| **Complexity** | Complex orchestration | Simplified management |
+| **Debugging** | Multiple log streams | Unified logging |
+| **Startup Time** | Sequential dependencies | Parallel service startup |
+| **Maintenance** | Multiple containers to manage | Single container focus |
+
+## 📚 References & Resources
+
+- [ERPNext Documentation](https://docs.erpnext.com/) - Official ERPNext documentation
+- [Frappe Framework](https://frappeframework.com/) - The underlying framework
+- [Serversideup Docker Pattern](https://serversideup.net/open-source/docker-php/) - Architecture inspiration
+- [S6 Overlay Documentation](https://github.com/just-containers/s6-overlay) - Process management
+- [Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/) - Container optimization
 
 ## 🤝 Contributing
 
-This project follows the serversideup pattern for Docker images. Contributions are welcome!
+We welcome contributions! Please follow these guidelines:
+
+1. **Fork the repository** and create a feature branch
+2. **Follow the existing code style** and patterns
+3. **Test your changes** thoroughly
+4. **Update documentation** as needed
+5. **Submit a pull request** with a clear description
+
+### Development Setup
+
+```bash
+# Clone your fork
+git clone https://github.com/your-username/frappe_docker.git
+cd frappe_docker
+
+# Build the development image
+docker buildx bake erpnext-nginx-dev
+
+# Test your changes
+docker compose up -d --build
+```
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Frappe Technologies](https://frappe.io/) for ERPNext
+- [Serversideup](https://serversideup.net/) for the Docker architecture pattern
+- [LinuxServer.io](https://www.linuxserver.io/) for user management approach
