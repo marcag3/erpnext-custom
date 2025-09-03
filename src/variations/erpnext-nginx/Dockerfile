@@ -22,6 +22,7 @@ RUN apt-get update \
     vim \
     nginx \
     gettext-base \
+    execline \
     file \
     # weasyprint dependencies
     libpango-1.0-0 \
@@ -42,19 +43,12 @@ RUN apt-get update \
     jq \
     # For S6 overlay installation
     xz-utils \
-    # NodeJS
-    && mkdir -p /home/frappe/.nvm \
-    && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | NVM_DIR=/home/frappe/.nvm bash \
-    && export NVM_DIR=/home/frappe/.nvm \
-    && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" \
-    && nvm install 22.14.0 \
-    && nvm use v22.14.0 \
+    # NodeJS - Install directly instead of using NVM for better system integration
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
     && npm install -g yarn \
-    && nvm alias default v22.14.0 \
-    && rm -rf /home/frappe/.nvm/.cache \
-    && echo 'export NVM_DIR="/home/frappe/.nvm"' >>/home/frappe/.bashrc \
-    && echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >>/home/frappe/.bashrc \
-    && echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >>/home/frappe/.bashrc \
+    # Create basic .bashrc for frappe user
+    && echo 'export PATH="/usr/local/bin:$PATH"' >> /home/frappe/.bashrc \
     # Install wkhtmltopdf
     && if [ "$(uname -m)" = "aarch64" ]; then export ARCH=arm64; fi \
     && if [ "$(uname -m)" = "x86_64" ]; then export ARCH=amd64; fi \
@@ -134,10 +128,8 @@ RUN   bash -c "source /home/frappe/.bashrc && bench init --apps_path=/opt/frappe
     --no-procfile \
     --no-backups \
     --skip-redis-config-generation \
-    --verbose \
     /home/frappe/frappe-bench" && \
   cd /home/frappe/frappe-bench && \
-  echo "{}" > sites/common_site_config.json && \
   find apps -mindepth 1 -path "*/.git" | xargs rm -fr
 
 ####################
@@ -154,10 +146,17 @@ COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench /home/frappe
 COPY apps.json /opt/frappe/apps.json
 
 # Copy S6 overlay from s6-build stage
+# NOTE: This copies S6 binaries (init system, commands, etc.)
 COPY --from=s6-build /opt/s6/ /
 
-# Copy variation-specific files
-COPY --chmod=755 src/variations/erpnext-nginx/etc/ /etc/
+# Copy S6 service definitions from s6-build stage
+# NOTE: This copies our custom services (nginx, gunicorn, websocket)
+# The nested path is due to how we copy src/s6/ in the s6-build stage
+COPY --from=s6-build /etc/s6-overlay/etc/s6-overlay/s6-rc.d /etc/s6-overlay/s6-rc.d
+
+# Copy variation-specific files (but preserve S6 services)
+COPY --chmod=755 src/variations/erpnext-nginx/etc/entrypoint.d/ /etc/entrypoint.d/
+COPY --chmod=755 src/variations/erpnext-nginx/etc/nginx/ /etc/nginx/
 
 # Set file permissions
 RUN docker-erpnext-permissions
@@ -169,10 +168,7 @@ USER frappe
 
 WORKDIR /home/frappe/frappe-bench
 
-VOLUME [ \
-  "/home/frappe/frappe-bench/sites", \
-  "/home/frappe/frappe-bench/logs" \
-]
+VOLUME "/home/frappe/frappe-bench/sites/frontend"
 
 EXPOSE 80
 

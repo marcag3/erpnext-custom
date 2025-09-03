@@ -18,6 +18,17 @@ This is a simplified, single-image Docker setup for ERPNext that follows the mod
 ## ✨ Features
 
 - **Single Web Container**: Nginx + Gunicorn + WebSocket all in one container
+- **S6-overlay Process Management**: Modern process supervisor for containers
+- **ServersideUp Pattern**: Follows the proven pattern from serversideup/docker-php
+
+## 🚧 Current Status
+
+**Issue**: S6-overlay services not starting properly
+- ✅ S6-overlay running as init system
+- ✅ Services configured (nginx, gunicorn, websocket)
+- ❌ Service compilation failing: `undefined service name nginx`
+
+**See [CONTEXT.md](CONTEXT.md) for detailed troubleshooting status**
 - **S6 Overlay Process Management**: Modern, reliable process supervisor
 - **Entrypoint Scripts**: Following serversideup's pattern for initialization
 - **Separate Worker Containers**: Using command overrides instead of SERVICE_TYPE

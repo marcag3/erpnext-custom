@@ -4,6 +4,7 @@ services:
   web:
     image: ghcr.io/marcag3/erpnext-custom:latest
     platform: linux/amd64
+    restart: unless-stopped
     environment:
       DB_HOST: db
       DB_PORT: 3306
@@ -22,7 +23,7 @@ services:
       - redis-cache
       - redis-queue
     networks:
-      # home-server_proxy:
+      home-server_proxy:
       default:
 
   db:
@@ -40,12 +41,14 @@ services:
       retries: 5
       start_period: 30s
       timeout: 5s
+    restart: unless-stopped
     volumes:
       - ./db-data:/var/lib/mysql
 
   queue:
     image: ghcr.io/marcag3/erpnext-custom:latest
     platform: linux/amd64
+    restart: unless-stopped
     command: ["bench", "worker", "--queue", "long,default,short"]
     stop_signal: SIGTERM
     environment:
@@ -68,6 +71,7 @@ services:
   scheduler:
     image: ghcr.io/marcag3/erpnext-custom:latest
     platform: linux/amd64
+    restart: unless-stopped
     command: ["bench", "schedule"]
     stop_signal: SIGTERM
     environment:
@@ -86,6 +90,7 @@ services:
 
   redis-cache:
     image: redis:6.2-alpine
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -99,6 +104,7 @@ services:
 
   redis-queue:
     image: redis:6.2-alpine
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -114,8 +120,8 @@ services:
 networks:
   default:
     name: erpnext
-  # home-server_proxy:
-  #   external: true
+  home-server_proxy:
+    external: true
 volumes:
   redis-cache-data:
     name: frappe_docker_redis-cache-data
