@@ -1,3 +1,3 @@
 #!/bin/sh
 # Gunicorn readiness check
-nc -z localhost 8000
+timeout 1 bash -c "</dev/tcp/localhost/8000" 2>/dev/null

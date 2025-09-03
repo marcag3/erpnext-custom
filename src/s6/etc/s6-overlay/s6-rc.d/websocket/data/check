@@ -1,3 +1,3 @@
 #!/bin/sh
 # WebSocket readiness check
-nc -z localhost 9000
+timeout 1 bash -c "</dev/tcp/localhost/9000" 2>/dev/null
