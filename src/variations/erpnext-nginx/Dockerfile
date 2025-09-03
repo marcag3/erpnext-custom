@@ -1,30 +1,58 @@
+ARG FRAPPE_BRANCH=version-15
 ARG PYTHON_VERSION=3.11.6
 ARG DEBIAN_BASE=bookworm
-FROM python:${PYTHON_VERSION}-slim-${DEBIAN_BASE} AS base
+
+# Use pre-built frappe/build image for the builder stage
+FROM frappe/build:${FRAPPE_BRANCH} AS builder
+
+ARG FRAPPE_BRANCH=version-15
+ARG FRAPPE_PATH=https://github.com/frappe/frappe
+ARG APPS_JSON_BASE64
+
+USER root
+
+# Handle apps.json if provided via base64
+RUN if [ -n "${APPS_JSON_BASE64}" ]; then \
+    mkdir -p /opt/frappe && echo "${APPS_JSON_BASE64}" | base64 -d > /opt/frappe/apps.json; \
+  fi
+
+# Copy apps.json from build context if not provided via base64
+COPY apps.json /opt/frappe/apps.json
+
+USER frappe
+
+# Initialize frappe-bench with apps
+RUN export APP_INSTALL_ARGS="" && \
+  if [ -f "/opt/frappe/apps.json" ]; then \
+    export APP_INSTALL_ARGS="--apps_path=/opt/frappe/apps.json"; \
+  fi && \
+  bench init ${APP_INSTALL_ARGS}\
+    --frappe-branch=${FRAPPE_BRANCH} \
+    --frappe-path=${FRAPPE_PATH} \
+    --no-procfile \
+    --no-backups \
+    --skip-assets \
+    --skip-redis-config-generation \
+    --verbose \
+    /home/frappe/frappe-bench && \
+  cd /home/frappe/frappe-bench && \
+  echo "{}" > sites/common_site_config.json && \
+  find apps -mindepth 1 -path "*/.git" | xargs rm -fr
+
+# Use pre-built frappe/base image for the runtime
+FROM frappe/base:${FRAPPE_BRANCH} AS base
 
 # Copy common scripts
 COPY --chmod=755 src/common/usr/local/bin/ /usr/local/bin/
 
-# Set default user and group IDs (linuxserver.io approach)
-ARG PUID=1000
-ARG PGID=1000
-
-# Create frappe user and group with specified IDs
-RUN groupadd -g ${PGID} frappe && useradd -u ${PUID} -g frappe -d /home/frappe -s /bin/bash frappe \
-    && mkdir -p /home/frappe \
-    && chown frappe:frappe /home/frappe
-
-# Install base dependencies
+# Install additional packages needed for nginx and S6
+USER root
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-    curl \
-    git \
-    vim \
     nginx \
     gettext-base \
     execline \
-    file \
-    # weasyprint dependencies
+    # weasyprint dependencies (if not already in frappe/base)
     libpango-1.0-0 \
     libharfbuzz0b \
     libpangoft2-1.0-0 \
@@ -43,12 +71,6 @@ RUN apt-get update \
     jq \
     # For S6 overlay installation
     xz-utils \
-    # NodeJS - Install directly instead of using NVM for better system integration
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && npm install -g yarn \
-    # Create basic .bashrc for frappe user
-    && echo 'export PATH="/usr/local/bin:$PATH"' >> /home/frappe/.bashrc \
     # Install wkhtmltopdf
     && if [ "$(uname -m)" = "aarch64" ]; then export ARCH=arm64; fi \
     && if [ "$(uname -m)" = "x86_64" ]; then export ARCH=amd64; fi \
@@ -59,7 +81,6 @@ RUN apt-get update \
     # Clean up
     && rm -rf /var/lib/apt/lists/* \
     && rm -fr /etc/nginx/sites-enabled/default \
-    && pip3 install frappe-bench \
     # Fixes for non-root nginx and logs to stdout
     && sed -i '/user www-data/d' /etc/nginx/nginx.conf \
     && ln -sf /dev/stdout /var/log/nginx/access.log \
@@ -84,53 +105,6 @@ RUN docker-erpnext-s6-install
 
 # Copy S6 service definitions
 COPY --chmod=755 src/s6/ /etc/s6-overlay/
-
-####################
-# Builder Stage
-####################
-FROM base AS builder
-
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-    wget \
-    libcairo2-dev \
-    libpango1.0-dev \
-    libjpeg-dev \
-    libgif-dev \
-    librsvg2-dev \
-    libpq-dev \
-    libffi-dev \
-    liblcms2-dev \
-    libldap2-dev \
-    libmariadb-dev \
-    libsasl2-dev \
-    libtiff5-dev \
-    libwebp-dev \
-    redis-tools \
-    rlwrap \
-    tk8.6-dev \
-    cron \
-    gcc \
-    build-essential \
-    libbz2-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy apps.json to the container
-COPY apps.json /opt/frappe/apps.json
-
-USER frappe
-
-ARG FRAPPE_BRANCH=version-15
-ARG FRAPPE_PATH=https://github.com/frappe/frappe
-RUN   bash -c "source /home/frappe/.bashrc && bench init --apps_path=/opt/frappe/apps.json\
-    --frappe-branch=${FRAPPE_BRANCH} \
-    --frappe-path=${FRAPPE_PATH} \
-    --no-procfile \
-    --no-backups \
-    --skip-redis-config-generation \
-    /home/frappe/frappe-bench" && \
-  cd /home/frappe/frappe-bench && \
-  find apps -mindepth 1 -path "*/.git" | xargs rm -fr
 
 ####################
 # Final Stage
