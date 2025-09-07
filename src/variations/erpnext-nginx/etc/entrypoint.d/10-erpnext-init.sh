@@ -33,6 +33,7 @@ if [ ! -f "sites/frontend/site_config.json" ]; then
     bench --site frontend install-app payments
     bench --site frontend install-app insights
     bench --site frontend install-app builder
+    bench --site frontend install-app print_designer
     
     
     echo "ERPNext site creation completed"
