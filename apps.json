@@ -18,5 +18,9 @@
   {
     "url": "https://github.com/frappe/builder",
     "branch": "master"
+  },
+  {
+    "url": "https://github.com/frappe/print_designer",
+    "branch": "develop"
   }
 ]
