@@ -41,16 +41,17 @@ else
     echo "ERPNext site already exists, running migrations..."
     bench --site frontend migrate
     
+    bench --site frontend install-app print_designer
     # Check and install apps if not already installed
-    apps=("hrms" "payments" "insights" "builder" "print_designer")
-    for app in "${apps[@]}"; do
-        if ! bench --site frontend list-apps | grep -q "$app"; then
-            echo "Installing $app app..."
-            bench --site frontend install-app "$app"
-        else
-            echo "$app app already installed, skipping..."
-        fi
-    done
+    # apps=("hrms" "payments" "insights" "builder" "print_designer")
+    # for app in "${apps[@]}"; do
+    #     if ! bench --site frontend list-apps | grep -q "$app"; then
+    #         echo "Installing $app app..."
+    #         bench --site frontend install-app "$app"
+    #     else
+    #         echo "$app app already installed, skipping..."
+    #     fi
+    # done
 fi
 
 echo "Build assets..."
