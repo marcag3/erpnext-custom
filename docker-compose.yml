@@ -5,9 +5,6 @@ services:
     image: ghcr.io/marcag3/erpnext-custom:latest
     platform: linux/amd64
     environment:
-      DB_HOST: db
-      DB_PORT: 3306
-      SOCKETIO_PORT: 9000
       DB_PASSWORD: "${DB_PASSWORD}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin}"
       PUID: "${PUID:-1000}"
@@ -35,9 +32,8 @@ services:
     command: ["bench", "worker", "--queue", "long,default,short"]
     stop_signal: SIGTERM
     environment:
-      DB_HOST: db
-      DB_PORT: 3306
       DB_PASSWORD: "${DB_PASSWORD}"
+      REDIS_QUEUE: whatever
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
       AUTORUN_ENABLED: "false"
@@ -58,8 +54,6 @@ services:
     command: ["bench", "schedule"]
     stop_signal: SIGTERM
     environment:
-      DB_HOST: db
-      DB_PORT: 3306
       DB_PASSWORD: "${DB_PASSWORD}"
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
