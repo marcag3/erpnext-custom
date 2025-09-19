@@ -34,8 +34,6 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 3306
-      REDIS_CACHE: redis-cache
-      REDIS_QUEUE: redis-queue
       DB_PASSWORD: "${DB_PASSWORD}"
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
@@ -59,8 +57,6 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 3306
-      REDIS_CACHE: redis-cache
-      REDIS_QUEUE: redis-queue
       DB_PASSWORD: "${DB_PASSWORD}"
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
