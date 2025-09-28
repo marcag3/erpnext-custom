@@ -1,7 +1,5 @@
 #!/bin/sh
 # ERPNext initialization script
-# Based on serversideup pattern
-
 
 
 # Always update global configuration to ensure Redis URLs are correct
@@ -15,6 +13,8 @@ bench set-config -g redis_cache "redis://redis-cache:6379"
 bench set-config -g redis_queue "redis://redis-queue:6379"
 bench set-config -g redis_socketio "redis://redis-queue:6379"
 bench set-config -gp socketio_port ${SOCKETIO_PORT:-9000}
+bench set-config -g server_script_enabled 1
+
 
 if [ "${AUTORUN_ENABLED:-true}" != "true" ]; then
     echo "AUTORUN_ENABLED is false, skipping ERPNext initialization"
