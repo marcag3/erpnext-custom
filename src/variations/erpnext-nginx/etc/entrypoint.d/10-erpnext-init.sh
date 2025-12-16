@@ -37,12 +37,81 @@ else
     bench --site frontend migrate
 fi
 
-# Install additional apps
-bench --site frontend install-app hrms
-bench --site frontend install-app payments
-bench --site frontend install-app insights
-bench --site frontend install-app builder
-bench --site frontend install-app print_designer
+# Install additional apps from environment variable (hybrid approach)
+# Supports both build-time apps (from apps.json) and runtime apps (downloaded on-the-fly)
+# Format: INSTALL_APPS="app1,app2,app3" or leave empty to install all apps from apps.json
+# Set ENABLE_RUNTIME_APPS=true to allow downloading apps not in apps.json
+if [ -n "${INSTALL_APPS}" ]; then
+    echo "Installing apps from INSTALL_APPS: ${INSTALL_APPS}"
+    # Use POSIX-compatible method to split comma-separated string
+    OLD_IFS="$IFS"
+    IFS=','
+    for app in ${INSTALL_APPS}; do
+        app=$(echo "$app" | xargs)  # Trim whitespace
+        if [ -n "$app" ]; then
+            echo "Processing app: $app"
+            
+            # Check if app exists in bench (build-time app from apps.json)
+            if [ ! -d "apps/$app" ]; then
+                # App not found in bench, check if runtime installation is enabled
+                if [ "${ENABLE_RUNTIME_APPS:-false}" = "true" ]; then
+                    echo "App '$app' not found in bench, attempting to download from GitHub..."
+                    if bench get-app "$app"; then
+                        echo "Successfully downloaded app '$app'"
+                    else
+                        echo "Error: Failed to download app '$app' from GitHub"
+                        echo "Make sure the app name is correct and the repository is accessible"
+                        continue
+                    fi
+                else
+                    echo "Error: App '$app' not found in bench and runtime app installation is disabled"
+                    echo "To fix this, either:"
+                    echo "  1. Add '$app' to apps.json and rebuild the image, or"
+                    echo "  2. Set ENABLE_RUNTIME_APPS=true to allow downloading apps at runtime"
+                    continue
+                fi
+            else
+                echo "App '$app' found in bench (build-time app)"
+            fi
+            
+            # Install app to site
+            echo "Installing app '$app' to site..."
+            if bench --site frontend install-app "$app"; then
+                echo "Successfully installed app '$app'"
+            else
+                echo "Warning: Failed to install app '$app' to site. It may already be installed or there was an error."
+            fi
+        fi
+    done
+    IFS="$OLD_IFS"
+else
+    # INSTALL_APPS not set, install all apps from apps.json (default behavior)
+    echo "INSTALL_APPS not set, installing all apps from apps.json (default behavior)"
+    
+    # Discover all apps in apps/ directory (excluding frappe and erpnext)
+    # frappe is the framework, erpnext is already installed during site creation
+    if [ -d "apps" ]; then
+        for app_dir in apps/*; do
+            # Check if glob matched any files (not literal "apps/*")
+            [ "$app_dir" = "apps/*" ] && break
+            if [ -d "$app_dir" ]; then
+                app=$(basename "$app_dir")
+                # Skip frappe (framework) and erpnext (already installed)
+                if [ "$app" != "frappe" ] && [ "$app" != "erpnext" ]; then
+                    echo "Processing app: $app (from apps.json)"
+                    
+                    # Install app to site
+                    echo "Installing app '$app' to site..."
+                    if bench --site frontend install-app "$app"; then
+                        echo "Successfully installed app '$app'"
+                    else
+                        echo "Warning: Failed to install app '$app' to site. It may already be installed or there was an error."
+                    fi
+                fi
+            fi
+        done
+    fi
+fi
 
 
 echo "Build assets..."

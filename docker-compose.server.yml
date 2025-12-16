@@ -10,6 +10,15 @@ services:
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
       AUTORUN_ENABLED: "true"
+      # Hybrid app installation: supports both build-time and runtime apps
+      # INSTALL_APPS: comma-separated list of apps to install (e.g., "hrms,payments,insights")
+      #   - Apps in apps.json are installed from build-time (fast, reproducible)
+      #   - Apps not in apps.json can be downloaded at runtime if ENABLE_RUNTIME_APPS=true
+      INSTALL_APPS: "${INSTALL_APPS:-}"
+      # ENABLE_RUNTIME_APPS: set to "true" to allow downloading apps not in apps.json at runtime
+      #   - When false (default): only apps from apps.json can be installed
+      #   - When true: missing apps will be downloaded from GitHub using bench get-app
+      ENABLE_RUNTIME_APPS: "${ENABLE_RUNTIME_APPS:-false}"
     volumes:
       - ./sites:/home/frappe/frappe-bench/sites/frontend
     depends_on:

@@ -61,6 +61,11 @@ ADMIN_PASSWORD=your_admin_password
 # User/Group IDs (optional - defaults to 1000)
 PUID=1000
 PGID=1000
+
+# App Installation (optional)
+# Leave INSTALL_APPS unset to install all apps from apps.json (default)
+# Or specify: INSTALL_APPS=hrms,payments,insights
+# ENABLE_RUNTIME_APPS=false
 ```
 
 ### 3. Start Services
@@ -153,6 +158,140 @@ Following the [serversideup pattern](https://serversideup.net/open-source/docker
 - **Nginx**: Proxies requests to internal services
 - **Gunicorn**: Python web application server
 - **WebSocket**: Real-time communication server
+
+## 📦 App Installation (Hybrid Approach)
+
+This setup supports a **hybrid app installation** approach that combines the benefits of build-time and runtime app installation:
+
+- **Build-time apps** (from `apps.json`): Fast, reproducible, always available
+- **Runtime apps** (downloaded on-the-fly): Flexible, no rebuild needed
+
+### How It Works
+
+1. **Build-time apps**: Apps listed in `apps.json` are cloned into the Docker image during build
+2. **Runtime apps**: Apps not in `apps.json` can be downloaded at runtime when `ENABLE_RUNTIME_APPS=true`
+
+### Apps Included in Base Image
+
+The following apps are included in the base Docker image (defined in `apps.json`):
+
+| App | Repository | Branch |
+|-----|------------|--------|
+| **ERPNext** | [frappe/erpnext](https://github.com/frappe/erpnext) | `version-15` |
+| **Payments** | [frappe/payments](https://github.com/frappe/payments) | `version-15` |
+| **HRMS** | [frappe/hrms](https://github.com/frappe/hrms) | `version-15` |
+| **Insights** | [frappe/insights](https://github.com/frappe/insights) | `main` |
+| **Builder** | [frappe/builder](https://github.com/frappe/builder) | `master` |
+| **Print Designer** | [frappe/print_designer](https://github.com/frappe/print_designer) | `develop` |
+
+These apps are available for installation without requiring runtime downloads.
+
+> **Note**: ERPNext is automatically installed when creating a new site and is excluded from the default app installation.
+
+### Default Behavior
+
+**If `INSTALL_APPS` is not set**: All apps from `apps.json` (except `frappe` and `erpnext`) are automatically installed. This means by default, you'll get:
+- Payments
+- HRMS
+- Insights
+- Builder
+- Print Designer
+
+**If `INSTALL_APPS` is set**: Only the specified apps are installed.
+
+### Configuration
+
+Add these environment variables to your `docker-compose.yml`:
+
+```yaml
+environment:
+  # Comma-separated list of apps to install (optional)
+  # If not set, all apps from apps.json are installed by default
+  INSTALL_APPS: "hrms,payments,insights"
+  
+  # Enable runtime app downloads (optional, defaults to false)
+  ENABLE_RUNTIME_APPS: "true"
+```
+
+Or set them in your `.env` file:
+
+```bash
+# Leave INSTALL_APPS unset to install all apps from apps.json
+# Or specify specific apps: INSTALL_APPS=hrms,payments,insights
+ENABLE_RUNTIME_APPS=false
+```
+
+### Usage Examples
+
+#### Example 1: Default Behavior (Install All Apps from apps.json)
+
+Don't set `INSTALL_APPS` - all apps from `apps.json` are installed automatically:
+
+```yaml
+environment:
+  # INSTALL_APPS not set - installs all apps from apps.json
+  # ENABLE_RUNTIME_APPS not set (defaults to false)
+```
+
+This will install: Payments, HRMS, Insights, Builder, and Print Designer.
+
+**Pros**: Zero configuration, all apps available, fast, reproducible, works offline
+
+#### Example 2: Install Specific Apps Only
+
+Only install selected apps from `apps.json`:
+
+```yaml
+environment:
+  INSTALL_APPS: "hrms,payments"  # Only install these specific apps
+  # ENABLE_RUNTIME_APPS not set (defaults to false)
+```
+
+**Pros**: Control which apps are installed
+
+#### Example 3: Runtime Apps Enabled
+
+Apps not in `apps.json` will be downloaded from GitHub:
+
+```yaml
+environment:
+  INSTALL_APPS: "hrms,payments,new_app"  # new_app not in apps.json
+  ENABLE_RUNTIME_APPS: "true"  # Allows downloading missing apps
+```
+
+**Pros**: Flexible, no rebuild needed  
+**Cons**: Requires network access, slower first install
+
+#### Example 4: Mixed Approach (Recommended)
+
+Common apps in `apps.json`, optional apps at runtime:
+
+```yaml
+environment:
+  INSTALL_APPS: "hrms,payments,optional_app"
+  ENABLE_RUNTIME_APPS: "true"
+```
+
+- `hrms` and `payments` install from build-time (fast)
+- `optional_app` downloads at runtime (flexible)
+
+### Best Practices
+
+1. **Core apps in `apps.json`**: Add frequently-used apps to `apps.json` for fast installation
+2. **Custom apps in `apps.json`**: Always include your custom app in `apps.json` for version control
+3. **Optional apps at runtime**: Use runtime installation for project-specific or rarely-used apps
+4. **Production**: Prefer build-time apps for reproducibility and offline capability
+
+### Troubleshooting
+
+**Error: "App not found and runtime installation is disabled"**
+- Add the app to `apps.json` and rebuild, OR
+- Set `ENABLE_RUNTIME_APPS=true` to allow runtime downloads
+
+**Error: "Failed to download app from GitHub"**
+- Check network connectivity
+- Verify the app name is correct
+- Ensure the app repository is publicly accessible
 
 ## 🐳 Docker Compose
 

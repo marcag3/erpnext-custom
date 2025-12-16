@@ -138,7 +138,9 @@ RUN docker-erpnext-permissions
 # Fix S6 Overlay issues
 RUN chown -R frappe:frappe /run
 
-USER frappe
+# Don't set USER here - let entrypoint handle user switching
+# This allows permission fixes to run as root before switching to frappe
+# USER frappe
 
 WORKDIR /home/frappe/frappe-bench
 

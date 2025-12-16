@@ -1,8 +1,14 @@
 #!/bin/sh
 # ERPNext Permission Management Script
-# Handles user/group IDs and file permissions
+# Single source of truth for all permission-related operations
+# Handles user/group creation, ID updates, and file permissions
 
 set -e
+
+# Source environment variables if available
+if [ -f /etc/environment ]; then
+    . /etc/environment
+fi
 
 # Default values
 PUID=${PUID:-1000}
@@ -10,26 +16,47 @@ PGID=${PGID:-1000}
 
 echo "Setting permissions: PUID=${PUID}, PGID=${PGID}"
 
-# Fix user/group IDs if needed
-CURRENT_UID=$(id -u frappe 2>/dev/null || echo "")
-CURRENT_GID=$(id -g frappe 2>/dev/null || echo "")
+# Ensure we're running as root for permission operations
+if [ "$(id -u)" != "0" ]; then
+    echo "Error: docker-erpnext-permissions must be run as root"
+    exit 1
+fi
 
-if [ "${CURRENT_UID}" != "${PUID}" ] || [ "${CURRENT_GID}" != "${PGID}" ]; then
-    echo "Updating user/group IDs from ${CURRENT_UID}:${CURRENT_GID} to ${PUID}:${PGID}"
-    [ "${CURRENT_GID}" != "${PGID}" ] && groupmod -g ${PGID} frappe
-    [ "${CURRENT_UID}" != "${PUID}" ] && usermod -u ${PUID} frappe
+# Ensure frappe user exists and has correct IDs
+if ! id -u frappe >/dev/null 2>&1; then
+    echo "Creating frappe user with UID=${PUID} GID=${PGID}"
+    groupadd -g ${PGID} frappe 2>/dev/null || true
+    useradd -u ${PUID} -g ${PGID} -d /home/frappe -s /bin/sh frappe 2>/dev/null || true
+else
+    # Update user/group IDs if needed
+    CURRENT_UID=$(id -u frappe 2>/dev/null || echo "")
+    CURRENT_GID=$(id -g frappe 2>/dev/null || echo "")
+    
+    if [ "${CURRENT_UID}" != "${PUID}" ] || [ "${CURRENT_GID}" != "${PGID}" ]; then
+        echo "Updating user/group IDs from ${CURRENT_UID}:${CURRENT_GID} to ${PUID}:${PGID}"
+        [ "${CURRENT_GID}" != "${PGID}" ] && groupmod -g ${PGID} frappe 2>/dev/null || true
+        [ "${CURRENT_UID}" != "${PUID}" ] && usermod -u ${PUID} frappe 2>/dev/null || true
+    fi
 fi
 
 # Set file permissions
 echo "Setting file permissions..."
 
+# Ensure directories exist with correct ownership
+mkdir -p /home/frappe/frappe-bench/sites
+mkdir -p /home/frappe/frappe-bench/logs
+mkdir -p /home/frappe/frappe-bench/sites/frontend
+
 # Core ERPNext directories
-# mkdir -p /home/frappe/frappe-bench/logs
+# Fix ownership recursively - this handles both the parent directory and mounted volumes
 chown -R ${PUID}:${PGID} /home/frappe/frappe-bench/sites 2>/dev/null || true
 chown -R ${PUID}:${PGID} /home/frappe/frappe-bench/logs 2>/dev/null || true
+chown -R ${PUID}:${PGID} /home/frappe/frappe-bench/sites/frontend 2>/dev/null || true
 
+# Ensure the directories are writable
 chmod -R 755 /home/frappe/frappe-bench/sites 2>/dev/null || true
 chmod -R 755 /home/frappe/frappe-bench/logs 2>/dev/null || true
+chmod -R 755 /home/frappe/frappe-bench/sites/frontend 2>/dev/null || true
 
 # Nginx directories and files
 chown -R ${PUID}:${PGID} /var/log/nginx /var/cache/nginx /var/lib/nginx /etc/nginx/conf.d 2>/dev/null || true
