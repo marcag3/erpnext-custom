@@ -12,10 +12,23 @@ fi
 
 # Check if we're running as root
 if [ "$(id -u)" = "0" ]; then
-    echo "Running as root, fixing permissions..."
-    
-    # Run unified permission management script
-    docker-erpnext-permissions
+    # Only run full permissions setup for web container (S6 /init)
+    # Queue and scheduler containers only need user setup, not expensive chown operations
+    if [ "$1" = "/init" ]; then
+        echo "Running as root, fixing permissions..."
+        # Run unified permission management script (includes chown -R on shared volumes)
+        docker-erpnext-permissions
+    else
+        # For bench commands, only ensure frappe user exists (skip expensive chown -R operations)
+        # The web container already set permissions on the shared volume during startup
+        PUID=${PUID:-1000}
+        PGID=${PGID:-1000}
+        if ! id -u frappe >/dev/null 2>&1; then
+            echo "Creating frappe user (minimal setup for bench commands)..."
+            groupadd -g ${PGID} frappe 2>/dev/null || true
+            useradd -u ${PUID} -g ${PGID} -d /home/frappe -s /bin/sh frappe 2>/dev/null || true
+        fi
+    fi
     
     # Run entrypoint scripts as frappe user (without exec, so we stay as root)
     if [ -d /etc/entrypoint.d ]; then
@@ -25,6 +38,15 @@ if [ "$(id -u)" = "0" ]; then
                 su frappe -s /bin/sh -c ". \"$script\""
             fi
         done
+    fi
+    
+    # Check if command is a bench command (not /init)
+    # Bench commands must run as frappe user, not root
+    if [ "$1" != "/init" ] && [ "$1" = "bench" ]; then
+        # Execute the full command as frappe user
+        # $@ already contains "bench ..." so just pass it directly
+        cd /home/frappe/frappe-bench
+        exec runuser -u frappe -w /home/frappe/frappe-bench -- "$@"
     fi
     
     # Execute the main command as root (S6 /init must run as PID 1)
