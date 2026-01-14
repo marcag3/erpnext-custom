@@ -12,6 +12,11 @@ bench set-config -g redis_socketio "redis://${REDIS_QUEUE:-redis-queue:6379}"
 bench set-config -gp socketio_port ${SOCKETIO_PORT:-9000}
 bench set-config -g server_script_enabled 1
 
+# Configure logging to stdout/stderr for Docker
+# Redirect log files to stdout/stderr to prevent disk space issues
+bench set-config -g log_file "/dev/stdout"
+bench set-config -g error_log_file "/dev/stderr"
+
 
 if [ "${AUTORUN_ENABLED:-true}" != "true" ]; then
     echo "AUTORUN_ENABLED is false, skipping ERPNext initialization"

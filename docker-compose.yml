@@ -42,7 +42,6 @@ services:
     stop_signal: SIGTERM
     environment:
       DB_PASSWORD: "${DB_PASSWORD}"
-      REDIS_QUEUE: whatever
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
       AUTORUN_ENABLED: "false"
