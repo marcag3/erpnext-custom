@@ -45,8 +45,15 @@ FROM frappe/base:${FRAPPE_BRANCH} AS base
 # Copy common scripts
 COPY --chmod=755 src/common/usr/local/bin/ /usr/local/bin/
 
-# Install additional packages needed for nginx and S6
 USER root
+
+# frappe/base creates the frappe user with primary group root (gid 0) and no
+# frappe group; the chown/--chown/groupmod calls below and in the entrypoint
+# scripts expect one.
+RUN getent group frappe >/dev/null || groupadd -g 1000 frappe \
+    && usermod -g frappe frappe
+
+# Install additional packages needed for nginx and S6
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
     nginx \
