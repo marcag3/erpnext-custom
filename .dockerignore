@@ -1,4 +1,12 @@
 README.md
 LICENSE
-.gitignore
+.git
+.github
+.env
+.vscode
+CLAUDE.md
 compose*.yaml
+docker-compose*.yml
+db-data
+sites
+scripts
