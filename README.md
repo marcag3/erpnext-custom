@@ -37,8 +37,8 @@ A modern, production-ready Docker setup for ERPNext that follows the [serverside
 ### 1. Clone and Setup
 
 ```bash
-git clone https://github.com/marcag3/frappe_docker.git
-cd frappe_docker
+git clone https://github.com/marcag3/erpnext-docker.git
+cd erpnext-docker
 ```
 
 ### 2. Environment Configuration
@@ -46,7 +46,7 @@ cd frappe_docker
 Copy the example environment file and customize it:
 
 ```bash
-cp example.env .env
+cp .env.example .env
 ```
 
 Edit `.env` with your desired configuration:
@@ -267,7 +267,7 @@ environment:
   # ENABLE_RUNTIME_APPS not set (defaults to false)
 ```
 
-This will install: Print Designer.
+This will install: Print Designer and Scout Manager.
 
 **Pros**: Zero configuration, all apps available, fast, reproducible, works offline
 
@@ -339,14 +339,14 @@ The setup uses a simplified docker-compose.yml with:
 ```yaml
 services:
   web:                    # Single container for all web services
-    image: ghcr.io/marcag3/erpnext-custom:latest
+    image: ghcr.io/marcag3/erpnext-docker:latest
     
   queue:                  # Worker with command override
-    image: ghcr.io/marcag3/erpnext-custom:latest
+    image: ghcr.io/marcag3/erpnext-docker:latest
     command: ["bench", "worker", "--queue", "long,default,short"]
     
   scheduler:              # Scheduler with command override
-    image: ghcr.io/marcag3/erpnext-custom:latest
+    image: ghcr.io/marcag3/erpnext-docker:latest
     command: ["bench", "schedule"]
 ```
 
@@ -554,8 +554,8 @@ We welcome contributions! Please follow these guidelines:
 
 ```bash
 # Clone your fork
-git clone https://github.com/your-username/frappe_docker.git
-cd frappe_docker
+git clone https://github.com/your-username/erpnext-docker.git
+cd erpnext-docker
 
 # Build the development image
 docker buildx bake erpnext-nginx-dev

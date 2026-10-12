@@ -2,7 +2,7 @@ name: erpnext
 services:
 
   web:
-    image: ghcr.io/marcag3/erpnext-custom:latest
+    image: ghcr.io/marcag3/erpnext-docker:latest
     platform: linux/amd64
     environment:
       DB_PASSWORD: "${DB_PASSWORD}"
@@ -36,7 +36,7 @@ services:
       
 
   queue:
-    image: ghcr.io/marcag3/erpnext-custom:latest
+    image: ghcr.io/marcag3/erpnext-docker:latest
     platform: linux/amd64
     command: ["bench", "worker", "--queue", "long,default,short"]
     stop_signal: SIGTERM
@@ -57,7 +57,7 @@ services:
 
 
   scheduler:
-    image: ghcr.io/marcag3/erpnext-custom:latest
+    image: ghcr.io/marcag3/erpnext-docker:latest
     platform: linux/amd64
     command: ["bench", "schedule"]
     stop_signal: SIGTERM
@@ -129,6 +129,6 @@ networks:
   #   external: true
 volumes:
   redis-cache-data:
-    name: frappe_docker_redis-cache-data
+    name: erpnext_redis-cache-data
   redis-queue-data:
-    name: frappe_docker_redis-queue-data
+    name: erpnext_redis-queue-data

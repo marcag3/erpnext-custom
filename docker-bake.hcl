@@ -32,17 +32,17 @@ target "erpnext-nginx" {
     APPS_JSON_BASE64 = "${APPS_JSON_BASE64}"
   }
   tags = [
-    "ghcr.io/marcag3/erpnext-custom:latest",
-    "ghcr.io/marcag3/erpnext-custom:${PYTHON_VERSION}",
-    "ghcr.io/marcag3/erpnext-custom:${PYTHON_VERSION}-${DEBIAN_BASE}"
+    "ghcr.io/marcag3/erpnext-docker:latest",
+    "ghcr.io/marcag3/erpnext-docker:${PYTHON_VERSION}",
+    "ghcr.io/marcag3/erpnext-docker:${PYTHON_VERSION}-${DEBIAN_BASE}"
   ]
 }
 
 target "erpnext-nginx-dev" {
   inherits = ["erpnext-nginx"]
   tags = [
-    "ghcr.io/marcag3/erpnext-custom:dev",
-    "ghcr.io/marcag3/erpnext-custom:${PYTHON_VERSION}-dev"
+    "ghcr.io/marcag3/erpnext-docker:dev",
+    "ghcr.io/marcag3/erpnext-docker:${PYTHON_VERSION}-dev"
   ]
   target = "final"
 }

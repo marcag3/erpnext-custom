@@ -133,6 +133,6 @@ networks:
     external: true
 volumes:
   redis-cache-data:
-    name: frappe_docker_redis-cache-data
+    name: erpnext_redis-cache-data
   redis-queue-data:
-    name: frappe_docker_redis-queue-data
+    name: erpnext_redis-queue-data
