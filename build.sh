@@ -13,7 +13,6 @@ fi
 CURRENT_BUILDER=$(docker buildx inspect --bootstrap | grep "Driver:" | awk '{print $2}')
 echo "🔧 Current builder: $CURRENT_BUILDER"
 
-# Try to build with bake first
 echo "🔨 Building image with docker buildx bake..."
 if docker buildx bake erpnext-nginx; then
     echo "✅ Build completed successfully!"
@@ -24,3 +23,6 @@ if docker buildx bake erpnext-nginx; then
     echo "🌐 Access ERPNext at: http://localhost:8080"
     exit 0
 fi
+
+echo "❌ Build failed."
+exit 1
