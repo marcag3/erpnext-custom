@@ -39,6 +39,12 @@ RUN export APP_INSTALL_ARGS="" && \
   echo "{}" > sites/common_site_config.json && \
   mkdir -p sites/frontend && \
   find apps -mindepth 1 -path "*/.git" | xargs rm -fr && \
+  # print_designer downloads Chromium into <bench>/chromium when it is installed on a
+  # site, which would be lost whenever the container is recreated: bake it in instead
+  if [ -d apps/print_designer ]; then \
+    (cd sites && ../env/bin/python -c "from print_designer.install import find_or_download_chromium_executable as f; f()") && \
+    test -n "$(find chromium -type f -name headless_shell)"; \
+  fi && \
   chmod -R g=u .
 
 # Use pre-built frappe/base image for the runtime
@@ -59,6 +65,8 @@ RUN apt-get update \
     libharfbuzz0b \
     libpangoft2-1.0-0 \
     libpangocairo-1.0-0 \
+    # Chromium (print_designer)
+    libatk-bridge2.0-0t64 \
     # For backups
     restic \
     gpg \

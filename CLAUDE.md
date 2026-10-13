@@ -45,6 +45,7 @@ There is no lint config and no test suite (see Tests).
 
 ## Things to know
 
+- Chromium for `print_designer` is downloaded at image build time into `<bench>/chromium` (the app would otherwise fetch it at site install, into the container, where it is lost on recreate); `libatk-bridge2.0-0t64` is installed because the headless shell needs it.
 - The image is `ghcr.io/marcag3/erpnext-docker` everywhere (bake, compose, CI, `.env.example`).
 - `.env` and `.vscode/` are gitignored.
 
