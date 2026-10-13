@@ -432,6 +432,56 @@ docker compose pull
 docker compose up -d
 ```
 
+## ⬆️ Upgrade Guide
+
+### Regular upgrade
+
+The image tracks the `version-16` branches of Frappe and of the apps in `apps.json` and is rebuilt weekly, so a new pull usually runs a `bench migrate` on startup.
+
+```bash
+# 1. Back up the database and the site files
+docker compose -f docker-compose.server.yml exec -T db sh -c 'mariadb-dump -uroot -p"$MYSQL_ROOT_PASSWORD" --all-databases' > backup.sql
+tar czf sites-backup.tgz sites
+
+# 2. Note the image you are running now (needed to roll back)
+docker compose -f docker-compose.server.yml images web
+
+# 3. Pull and restart
+docker compose -f docker-compose.server.yml pull
+docker compose -f docker-compose.server.yml up -d
+docker compose -f docker-compose.server.yml logs -f web   # wait for the migration to finish
+```
+
+`docker compose ps` should then show every service as `healthy`.
+
+**Roll back**: put the previous image (tag or digest from step 2) in `ERPNEXT_IMAGE` and run `up -d` again. If the migration already changed the database, restore `backup.sql` too:
+
+```bash
+docker compose -f docker-compose.server.yml exec -T db sh -c 'mariadb -uroot -p"$MYSQL_ROOT_PASSWORD"' < backup.sql
+```
+
+### Upgrading to the non-root image
+
+Older images started as root, remapped the `frappe` user to `PUID`/`PGID` and ran `chown -R` on the volumes at every start. The containers now run as `frappe` (uid `PUID`, gid 0) from the start, so:
+
+1. Do the **regular upgrade** steps 1 and 2 above (backup first).
+2. In `.env`, delete `PGID` (it is ignored). Keep `PUID` if your host user is not uid 1000.
+3. Update the compose files (`git pull`): `PUID`/`PGID` environment variables are replaced by `user: "${PUID:-1000}:0"`.
+4. Fix the ownership of the bind-mounted folder once. The old web container ran its services as root, so some files in `./sites` may still belong to root:
+   ```bash
+   sudo chown -R "${PUID:-1000}" sites
+   ```
+   `./db-data` is MariaDB's own and is not touched.
+5. Pull and restart (steps 3 above), then check that nothing runs as root:
+   ```bash
+   docker compose -f docker-compose.server.yml exec web id   # uid=<PUID> gid=0(root)
+   ```
+
+Other things that changed in the same release:
+- **Health checks**: `queue` and `scheduler` have real health checks (see [Service Health Checks](#service-health-checks)); they used to inherit the web check and always showed `unhealthy`.
+- **Print Designer**: Chromium is now downloaded when the image is built (it used to be fetched when the app was installed on a site, and was lost when the container was recreated). PDF generation with Print Designer works without internet access at runtime.
+- **Docker named volumes** for `./sites` need no ownership fix; Docker initialises them from the image.
+
 ## 🧪 Testing & Troubleshooting
 
 ### Service Health Checks
