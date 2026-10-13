@@ -3,12 +3,11 @@ services:
 
   web:
     image: "${ERPNEXT_IMAGE}"
+    user: "${PUID:-1000}:0"
     restart: unless-stopped
     environment:
       DB_PASSWORD: "${DB_PASSWORD}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin}"
-      PUID: "${PUID:-1000}"
-      PGID: "${PGID:-1000}"
       AUTORUN_ENABLED: "true"
       # Hybrid app installation: supports both build-time and runtime apps
       # INSTALL_APPS: comma-separated list of apps to install (e.g., "print_designer")
@@ -34,13 +33,12 @@ services:
 
   queue:
     image: "${ERPNEXT_IMAGE}"
+    user: "${PUID:-1000}:0"
     restart: unless-stopped
     command: [ "bench", "worker", "--queue", "long,default,short" ]
     stop_signal: SIGTERM
     environment:
       DB_PASSWORD: "${DB_PASSWORD}"
-      PUID: "${PUID:-1000}"
-      PGID: "${PGID:-1000}"
       AUTORUN_ENABLED: "false"
     volumes:
       - ./sites:/home/frappe/frappe-bench/sites/frontend
@@ -54,13 +52,12 @@ services:
 
   scheduler:
     image: "${ERPNEXT_IMAGE}"
+    user: "${PUID:-1000}:0"
     restart: unless-stopped
     command: [ "bench", "schedule" ]
     stop_signal: SIGTERM
     environment:
       DB_PASSWORD: "${DB_PASSWORD}"
-      PUID: "${PUID:-1000}"
-      PGID: "${PGID:-1000}"
       AUTORUN_ENABLED: "false"
     volumes:
       - ./sites:/home/frappe/frappe-bench/sites/frontend

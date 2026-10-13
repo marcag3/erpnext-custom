@@ -1,58 +1,16 @@
 #!/bin/sh
-# ERPNext Docker Entrypoint Script
-# Based on serversideup pattern with linuxserver.io user switching
-# Orchestrates entrypoint scripts and user switching
+# Runs the /etc/entrypoint.d scripts, then the container command.
+# Runs as the unprivileged frappe user; files stay group-accessible (gid 0).
 
 set -e
 
-# Source environment variables
-if [ -f /etc/environment ]; then
-    . /etc/environment
-fi
+umask 0002
 
-# Check if we're running as root
-if [ "$(id -u)" = "0" ]; then
-    # Only run full permissions setup for web container (S6 /init)
-    # Queue and scheduler containers only need user setup, not expensive chown operations
-    if [ "$1" = "/init" ]; then
-        echo "Running as root, fixing permissions..."
-        # Run unified permission management script (includes chown -R on shared volumes)
-        docker-erpnext-permissions
-    else
-        # For bench commands, only ensure frappe user exists (skip expensive chown -R operations)
-        # The web container already set permissions on the shared volume during startup
-        PUID=${PUID:-1000}
-        PGID=${PGID:-1000}
-        if ! id -u frappe >/dev/null 2>&1; then
-            echo "Creating frappe user (minimal setup for bench commands)..."
-            groupadd -g ${PGID} frappe 2>/dev/null || true
-            useradd -u ${PUID} -g ${PGID} -d /home/frappe -s /bin/sh frappe 2>/dev/null || true
-        fi
+for script in /etc/entrypoint.d/[0-9]*-*.sh; do
+    if [ -f "$script" ] && [ -x "$script" ]; then
+        echo "Running entrypoint script: $script"
+        . "$script"
     fi
-    
-    # Run entrypoint scripts as frappe user (without exec, so we stay as root)
-    if [ -d /etc/entrypoint.d ]; then
-        for script in /etc/entrypoint.d/[0-9]*-*.sh; do
-            if [ -f "$script" ] && [ -x "$script" ]; then
-                echo "Running entrypoint script as frappe: $script"
-                su frappe -s /bin/sh -c ". \"$script\""
-            fi
-        done
-    fi
-    
-    # Check if command is a bench command (not /init)
-    # Bench commands must run as frappe user, not root
-    if [ "$1" != "/init" ] && [ "$1" = "bench" ]; then
-        # Execute the full command as frappe user
-        # $@ already contains "bench ..." so just pass it directly
-        cd /home/frappe/frappe-bench
-        exec runuser -u frappe -w /home/frappe/frappe-bench -- "$@"
-    fi
-    
-    # Execute the main command as root (S6 /init must run as PID 1)
-    # S6 overlay will handle user switching for individual services
-    exec "$@"
-fi
+done
 
-# If we somehow get here as non-root, just execute the command
 exec "$@"

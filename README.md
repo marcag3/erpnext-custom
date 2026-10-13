@@ -23,7 +23,7 @@ A modern, production-ready Docker setup for ERPNext that follows the [serverside
 - **Automatic Setup**: Site creation and app installation happens automatically
 - **Production Ready**: Health checks, proper signal handling, and graceful shutdowns
 - **Update-Friendly**: Works seamlessly with Watchtower for automatic updates
-- **LinuxServer.io User Management**: Dynamic user/group ID handling to prevent permission issues
+- **Non-root**: Runs as an unprivileged `frappe` user (uid 1000, gid 0), like upstream frappe_docker
 - **Multi-Platform Support**: Builds for multiple architectures using Docker Buildx
 
 ## 🚀 Quick Start
@@ -58,9 +58,8 @@ DB_PASSWORD=your_secure_database_password
 # ERPNext Admin Configuration  
 ADMIN_PASSWORD=your_admin_password
 
-# User/Group IDs (optional - defaults to 1000)
+# Host user ID the containers run as (optional - defaults to 1000)
 PUID=1000
-PGID=1000
 
 # App Installation (optional)
 # Leave INSTALL_APPS unset to install all apps from apps.json (default)
@@ -86,36 +85,23 @@ docker compose ps
 
 > **Note**: Initial setup may take 5-10 minutes as ERPNext creates the site and installs apps automatically.
 
-## 🔐 User and Group ID Management
+## 🔐 Users and Permissions
 
-This setup uses the linuxserver.io approach for user and group ID management to prevent permission issues when mounting volumes.
+Like upstream [frappe_docker](https://github.com/frappe/frappe_docker), the containers run as the unprivileged `frappe` user (uid 1000, gid 0) and never as root. Files are group-writable, so any uid in group 0 can run the image.
 
-### Setting Your User/Group IDs
+The bind-mounted `./sites` folder must be writable by that user. Create it yourself before the first start (otherwise Docker creates it as `root`):
 
-1. **Find your user and group IDs**:
-   ```bash
-   id
-   # Example output: uid=1000(mag) gid=1000(mag) groups=1000(mag),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),120(lpadmin),131(lxd),132(sambashare)
-   ```
+```bash
+mkdir -p sites db-data
+```
 
-2. **Update your `.env` file**:
-   ```bash
-   PUID=1000  # Your user ID
-   PGID=1000  # Your group ID
-   ```
+If your host user is not uid 1000, set `PUID` in `.env` (see `id -u`) and make sure `./sites` belongs to that uid:
 
-3. **Restart the containers**:
-   ```bash
-   docker compose down
-   docker compose up -d
-   ```
+```bash
+sudo chown -R "$(id -u)" sites
+```
 
-### How It Works
-
-- The container creates a `frappe` user with the specified UID/GID
-- At startup, the container checks if the user/group IDs need to be changed
-- If needed, it dynamically changes the IDs and fixes ownership of all relevant directories
-- This ensures that files created inside the container have the same ownership as your host user
+Docker named volumes need no setup.
 
 ## 🏛️ Project Structure
 
@@ -126,13 +112,11 @@ src/
 ├── common/                          # Common scripts and utilities
 │   └── usr/local/bin/
 │       ├── docker-erpnext-s6-install
-│       ├── docker-erpnext-entrypoint
-│       └── docker-erpnext-permissions
+│       └── docker-erpnext-entrypoint
 ├── s6/                             # S6 Overlay service definitions
-│   └── etc/s6-overlay/s6-rc.d/user/contents.d/
-│       ├── nginx/                  # Nginx service
-│       ├── gunicorn/               # Gunicorn service
-│       └── websocket/              # WebSocket service
+│   └── etc/s6-overlay/
+│       ├── s6-rc.d/                # Services: nginx, gunicorn, websocket
+│       └── user-bundles.d/user/    # Bundle that starts them
 └── variations/                     # Different image variations
     └── erpnext-nginx/              # Main ERPNext + Nginx variation
         ├── Dockerfile              # Main Dockerfile
@@ -490,11 +474,11 @@ docker compose logs web
 
 #### Permission Issues
 ```bash
-# Fix file permissions
-docker compose exec web chown -R frappe:frappe /home/frappe/frappe-bench/sites
+# The ./sites folder must be writable by PUID (default 1000), group 0
+sudo chown -R "$(id -u)" sites
 
-# Check user/group IDs
-docker compose exec web id frappe
+# Check which user the container runs as
+docker compose exec web id
 ```
 
 #### Database Connection Issues
@@ -572,4 +556,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [Frappe Technologies](https://frappe.io/) for ERPNext
 - [Serversideup](https://serversideup.net/) for the Docker architecture pattern
-- [LinuxServer.io](https://www.linuxserver.io/) for user management approach

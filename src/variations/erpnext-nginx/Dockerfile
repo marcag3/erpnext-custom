@@ -37,7 +37,9 @@ RUN export APP_INSTALL_ARGS="" && \
     /home/frappe/frappe-bench && \
   cd /home/frappe/frappe-bench && \
   echo "{}" > sites/common_site_config.json && \
-  find apps -mindepth 1 -path "*/.git" | xargs rm -fr
+  mkdir -p sites/frontend && \
+  find apps -mindepth 1 -path "*/.git" | xargs rm -fr && \
+  chmod -R g=u .
 
 # Use pre-built frappe/base image for the runtime
 FROM frappe/base:${FRAPPE_BRANCH} AS base
@@ -45,15 +47,8 @@ FROM frappe/base:${FRAPPE_BRANCH} AS base
 # Copy common scripts
 COPY --chmod=755 src/common/usr/local/bin/ /usr/local/bin/
 
-USER root
-
-# frappe/base creates the frappe user with primary group root (gid 0) and no
-# frappe group; the chown/--chown/groupmod calls below and in the entrypoint
-# scripts expect one.
-RUN getent group frappe >/dev/null || groupadd -g 1000 frappe \
-    && usermod -g frappe frappe
-
 # Install additional packages needed for nginx and S6
+USER root
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
     nginx \
@@ -93,11 +88,8 @@ RUN apt-get update \
     && ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log \
     && touch /run/nginx.pid \
-    && chown -R frappe:frappe /etc/nginx/conf.d \
-    && chown -R frappe:frappe /etc/nginx/nginx.conf \
-    && chown -R frappe:frappe /var/log/nginx \
-    && chown -R frappe:frappe /var/lib/nginx \
-    && chown -R frappe:frappe /run/nginx.pid
+    && chown -R frappe:0 /etc/nginx/conf.d /etc/nginx/nginx.conf /var/log/nginx /var/lib/nginx /run/nginx.pid \
+    && chmod -R g=u /etc/nginx/conf.d /etc/nginx/nginx.conf /var/log/nginx /var/lib/nginx /run/nginx.pid
 
 ##########
 # S6 Build
@@ -110,9 +102,6 @@ ARG S6_SRC_URL="https://github.com/just-containers/s6-overlay/releases/download"
 # Install S6 Overlay
 RUN docker-erpnext-s6-install
 
-# Copy S6 service definitions
-COPY --chmod=755 src/s6/ /etc/s6-overlay/
-
 ####################
 # Final Stage
 ####################
@@ -121,7 +110,7 @@ FROM s6-build AS final
 USER root
 
 # Copy built frappe-bench from builder
-COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench /home/frappe/frappe-bench
+COPY --from=builder --chown=frappe:0 /home/frappe/frappe-bench /home/frappe/frappe-bench
 
 # Copy apps.json to final stage for runtime initialization
 COPY apps.json /opt/frappe/apps.json
@@ -130,24 +119,25 @@ COPY apps.json /opt/frappe/apps.json
 # NOTE: This copies S6 binaries (init system, commands, etc.)
 COPY --from=s6-build /opt/s6/ /
 
-# Copy S6 service definitions from s6-build stage
-# NOTE: This copies our custom services (nginx, gunicorn, websocket)
-# The nested path is due to how we copy src/s6/ in the s6-build stage
-COPY --from=s6-build /etc/s6-overlay/etc/s6-overlay/s6-rc.d /etc/s6-overlay/s6-rc.d
+# Copy our S6 services (nginx, gunicorn, websocket) on top of the overlay. The user
+# bundle lives in user-bundles.d because, unlike a bundle in s6-rc.d, it needs no
+# write access to /etc at startup, so s6 can run as frappe
+COPY --chmod=755 src/s6/etc/s6-overlay/ /etc/s6-overlay/
 
 # Copy variation-specific files (but preserve S6 services)
 COPY --chmod=755 src/variations/erpnext-nginx/etc/entrypoint.d/ /etc/entrypoint.d/
 COPY --chmod=755 src/variations/erpnext-nginx/etc/nginx/ /etc/nginx/
 
-# Set file permissions
-RUN docker-erpnext-permissions
+# s6-overlay keeps its state in /run; HOME must be group-writable for the caches of
+# yarn/pip/etc. when the uid is not frappe's
+RUN chown -R frappe:0 /run && chmod g=u /home/frappe
 
-# Fix S6 Overlay issues
-RUN chown -R frappe:frappe /run
-
-# Don't set USER here - let entrypoint handle user switching
-# This allows permission fixes to run as root before switching to frappe
-# USER frappe
+# Same model as upstream frappe_docker: unprivileged frappe (uid 1000, gid 0),
+# group-writable files, so any uid in group 0 can run the image
+USER frappe
+# A uid that is not frappe's (e.g. compose `user: "1234:0"`) has no /etc/passwd entry:
+# Python then fails to look the user up unless $USER is set, and Docker sets HOME=/
+ENV USER=frappe HOME=/home/frappe
 
 WORKDIR /home/frappe/frappe-bench
 
