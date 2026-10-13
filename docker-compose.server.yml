@@ -37,6 +37,12 @@ services:
     restart: unless-stopped
     command: [ "bench", "worker", "--queue", "long,default,short" ]
     stop_signal: SIGTERM
+    healthcheck:
+      test: ["CMD", "docker-erpnext-healthcheck", "worker"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     environment:
       DB_PASSWORD: "${DB_PASSWORD}"
       AUTORUN_ENABLED: "false"
@@ -56,6 +62,12 @@ services:
     restart: unless-stopped
     command: [ "bench", "schedule" ]
     stop_signal: SIGTERM
+    healthcheck:
+      test: ["CMD", "docker-erpnext-healthcheck", "scheduler"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     environment:
       DB_PASSWORD: "${DB_PASSWORD}"
       AUTORUN_ENABLED: "false"

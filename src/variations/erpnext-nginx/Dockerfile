@@ -160,5 +160,6 @@ STOPSIGNAL SIGQUIT
 
 CMD ["/init"]
 
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+# nginx only starts once the init script (site creation / migrate) is done, which takes minutes
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10m \
     CMD [ "sh", "-c", "curl --silent --fail http://localhost:80 || exit 1" ]

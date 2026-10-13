@@ -21,7 +21,7 @@ A modern, production-ready Docker setup for ERPNext that follows the [serverside
 - **S6-overlay Process Management**: Modern, reliable process supervisor for containers
 - **ServersideUp Pattern**: Follows the proven pattern from serversideup/docker-php
 - **Automatic Setup**: Site creation and app installation happens automatically
-- **Production Ready**: Health checks, proper signal handling, and graceful shutdowns
+- **Production Ready**: Health checks for every service, proper signal handling, and graceful shutdowns
 - **Update-Friendly**: Works seamlessly with Watchtower for automatic updates
 - **Non-root**: Runs as an unprivileged `frappe` user (uid 1000, gid 0), like upstream frappe_docker
 - **Multi-Platform Support**: Builds for multiple architectures using Docker Buildx
@@ -112,6 +112,7 @@ src/
 ├── common/                          # Common scripts and utilities
 │   └── usr/local/bin/
 │       ├── docker-erpnext-s6-install
+│       ├── docker-erpnext-healthcheck
 │       └── docker-erpnext-entrypoint
 ├── s6/                             # S6 Overlay service definitions
 │   └── etc/s6-overlay/
@@ -434,6 +435,12 @@ docker compose up -d
 ## 🧪 Testing & Troubleshooting
 
 ### Service Health Checks
+
+| Service | Check |
+|---|---|
+| `web` | `curl` on nginx (port 80) |
+| `queue` | The container's RQ worker is registered in redis (`docker-erpnext-healthcheck worker`) |
+| `scheduler` | Redis answers and `bench schedule` is running (`docker-erpnext-healthcheck scheduler`). Frappe has no scheduler heartbeat, so a hung scheduler is not detected |
 
 ```bash
 # Check all service status

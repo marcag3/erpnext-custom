@@ -1,0 +1,42 @@
+#!/home/frappe/frappe-bench/env/bin/python
+"""Healthcheck for the queue and scheduler containers: docker-erpnext-healthcheck worker|scheduler
+
+worker:    this container's RQ worker is registered in redis (workers expire if they stop beating)
+scheduler: redis_queue answers and the scheduler process is running (Frappe exposes no scheduler heartbeat)
+"""
+import json
+import os
+import socket
+import sys
+
+from redis import Redis
+from rq import Worker
+
+
+def has_process_with_arg(arg):
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        if int(pid) == os.getpid():
+            continue
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                if arg.encode() in f.read().split(b"\0"):
+                    return True
+        except OSError:  # the process exited while we were scanning
+            continue
+    return False
+
+
+role = sys.argv[1] if len(sys.argv) > 1 else ""
+with open("/home/frappe/frappe-bench/sites/common_site_config.json") as f:
+    connection = Redis.from_url(json.load(f)["redis_queue"], socket_timeout=5)
+
+if role == "worker":
+    hostname = socket.gethostname()
+    ok = any(w.hostname in (hostname, hostname.encode()) for w in Worker.all(connection=connection))
+elif role == "scheduler":
+    connection.ping()
+    ok = has_process_with_arg("schedule")
+else:
+    sys.exit(f"usage: {sys.argv[0]} worker|scheduler")
+
+sys.exit(0 if ok else 1)
