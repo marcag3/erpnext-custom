@@ -7,7 +7,7 @@ upstream socketio-server {
 }
 
 server {
-    listen 80;
+    listen 8080;
     server_name _;
     root /home/frappe/frappe-bench/sites;
 

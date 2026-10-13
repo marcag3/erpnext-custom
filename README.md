@@ -10,7 +10,7 @@ A modern, production-ready Docker setup for ERPNext that follows the [serverside
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
 │  │ Nginx   │ │Gunicorn │ │WebSocket│   │
 │  │(Proxy)  │ │(Python) │ │ (Node)  │   │
-│  │ Port 80 │ │Port 8000│ │Port 9000│   │
+│  │Port 8080│ │Port 8000│ │Port 9000│   │
 │  └─────────┘ └─────────┘ └─────────┘   │
 └─────────────────────────────────────────┘
 ```
@@ -438,7 +438,7 @@ docker compose up -d
 
 | Service | Check |
 |---|---|
-| `web` | `curl` on nginx (port 80) |
+| `web` | `curl` on nginx (port 8080) |
 | `queue` | The container's RQ worker is registered in redis (`docker-erpnext-healthcheck worker`) |
 | `scheduler` | Redis answers and `bench schedule` is running (`docker-erpnext-healthcheck scheduler`). Frappe has no scheduler heartbeat, so a hung scheduler is not detected |
 

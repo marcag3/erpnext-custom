@@ -21,7 +21,7 @@ services:
     volumes:
       - ./sites:/home/frappe/frappe-bench/sites/frontend
     ports:
-      - "8080:80"  # Nginx will proxy to gunicorn on 8000 and websocket on 9000
+      - "8080:8080"  # Nginx will proxy to gunicorn on 8000 and websocket on 9000
     depends_on:
       db:
         condition: service_healthy

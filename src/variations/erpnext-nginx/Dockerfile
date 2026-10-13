@@ -151,7 +151,7 @@ WORKDIR /home/frappe/frappe-bench
 
 VOLUME "/home/frappe/frappe-bench/sites/frontend"
 
-EXPOSE 80
+EXPOSE 8080
 
 ENTRYPOINT ["docker-erpnext-entrypoint"]
 
@@ -162,4 +162,4 @@ CMD ["/init"]
 
 # nginx only starts once the init script (site creation / migrate) is done, which takes minutes
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10m \
-    CMD [ "sh", "-c", "curl --silent --fail http://localhost:80 || exit 1" ]
+    CMD [ "sh", "-c", "curl --silent --fail http://localhost:8080 || exit 1" ]
