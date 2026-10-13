@@ -47,6 +47,19 @@ jobs:
         APPS_JSON=$(cat apps.json)
         echo "apps_json_base64=$(echo $APPS_JSON | base64 -w 0)" >> "$GITHUB_OUTPUT"
 
+    # bench init clones frappe and every app from a branch; without this the layer is
+    # served from cache forever because none of its inputs (apps.json, branch name) change
+    - name: Resolve app revisions
+      id: revs
+      run: |
+        FRAPPE_BRANCH=$(sed -n 's/^ARG FRAPPE_BRANCH=//p' src/variations/erpnext-nginx/Dockerfile | head -1)
+        {
+          git ls-remote https://github.com/frappe/frappe "refs/heads/${FRAPPE_BRANCH}"
+          jq -r '.[] | "\(.url) refs/heads/\(.branch)"' apps.json | while read -r url ref; do
+            git ls-remote "$url" "$ref"
+          done
+        } | tee /dev/stderr | sha256sum | cut -d' ' -f1 | sed 's/^/apps_rev=/' >> "$GITHUB_OUTPUT"
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
 
@@ -60,6 +73,7 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         build-args: |
           APPS_JSON_BASE64=${{ steps.apps_json.outputs.apps_json_base64 }}
+          APPS_REV=${{ steps.revs.outputs.apps_rev }}
         cache-from: |
           type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
           type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-buildcache

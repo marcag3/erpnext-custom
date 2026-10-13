@@ -22,7 +22,9 @@ COPY apps.json /opt/frappe/apps.json
 USER frappe
 
 # Initialize frappe-bench with apps
-RUN export APP_INSTALL_ARGS="" && \
+# APPS_REV (hash of the upstream branch HEADs) busts the cache when any app has new commits
+ARG APPS_REV
+RUN echo "apps revision: ${APPS_REV:-unset}" && export APP_INSTALL_ARGS="" && \
   if [ -f "/opt/frappe/apps.json" ]; then \
     export APP_INSTALL_ARGS="--apps_path=/opt/frappe/apps.json"; \
   fi && \
